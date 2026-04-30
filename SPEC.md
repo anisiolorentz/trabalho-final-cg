@@ -112,7 +112,7 @@ Para cada um dos requisitos abaixo (detalhados no [Enunciado do Trabalho final -
 
 - `A aplicação não implementará física realista completa. As peças serão manipuladas diretamente pelo usuário, com movimentação e rotação controladas por teclado e/ou mouse.`
 - `As colisões serão simplificadas, utilizando caixas ou esferas de colisão, pois o objetivo principal é validar interações básicas e impedir atravessamento de objetos.`
-- `A aplicação será inspirada no vídeo de referência, mas não será uma cópia exata da cena original. O foco será reproduzir a ideia de sala de puzzle com objetos geométricos, mesa, rampa e objetivo em uma região elevada.`
+- `A aplicação será inspirada no vídeo de referência, mas não será uma cópia exata da cena original. O foco será reproduzir a ideia de sala de puzzle com objetos geométricos, mesa e objetivo de alcançar uma região elevada, mas não necessariamente os objeto irão crescer de acordo com movientação da câmera.`
 - `Sombras realistas, partículas, efeitos sonoros e física avançada não serão prioridade, pois o trabalho focará nos requisitos principais de computação gráfica.`
 - `A movimentação das peças será simplificada para evitar comportamento instável. O usuário poderá pegar, mover, rotacionar e soltar objetos, mas sem simulação realista de peso ou impacto.`
 - `A plataforma elevada e o caminho até ela serão simplificados para manter o escopo viável dentro do tempo disponível para desenvolvimento.`
