@@ -118,3 +118,5 @@ Para cada um dos requisitos abaixo (detalhados no [Enunciado do Trabalho final -
 - `A plataforma elevada e o caminho até ela serão simplificados para manter o escopo viável dentro do tempo disponível para desenvolvimento.`
 
 </mark>
+
+> Comentário Professor: a dinâmica dos objetos "crescerem" de acordo com a orientação da câmera perspectiva é bem legal. Se quiserem implementar, isso pode contar já como um segundo tipo de "câmera".
