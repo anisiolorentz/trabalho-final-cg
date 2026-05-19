@@ -38,6 +38,7 @@
 // Headers da biblioteca GLM: criação de matrizes e vetores.
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <glm/geometric.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 // Headers da biblioteca para carregar modelos obj
@@ -119,6 +120,9 @@ void ComputeNormals(ObjModel* model); // Computa normais de um ObjModel, caso n�
 void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, criando um programa de GPU
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
 void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
+void DrawGameObject(const struct GameObject& object); // Desenha uma instância lógica da cena do jogo
+void SelectNextGameObject(); // Seleciona visualmente a próxima peça manipulável
+void ToggleHeldObject(); // Alterna entre pegar e soltar a peça selecionada
 GLuint LoadShader_Vertex(const char* filename);   // Carrega um vertex shader
 GLuint LoadShader_Fragment(const char* filename); // Carrega um fragment shader
 void LoadShader(const char* filename, GLuint shader_id); // Função utilizada pelas duas acima
@@ -166,6 +170,42 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+// IDs enviados ao fragment shader via uniform `object_id`. Os valores DEVEM
+// ser idênticos aos #defines em src/shader_fragment.glsl. O merge inseriu
+// FLOOR=3 (sala do museu, vinda do HEAD) e deslocou TABLE e as peças do
+// puzzle para os próximos índices, mantendo todos os ids do colega.
+enum ObjectId
+{
+    SPHERE         = 0,
+    BUNNY          = 1,
+    PLANE          = 2,
+    FLOOR          = 3,
+    WALL           = 4,
+    TABLE          = 5,
+    CUBE_PIECE     = 6,
+    TRIANGLE_PIECE = 7,
+    CYLINDER_PIECE = 8,
+    SELECTED_PIECE = 9
+};
+
+struct GameObject
+{
+    std::string meshName;
+    int objectId;
+
+    glm::vec3 position;
+    glm::vec3 rotation;
+    glm::vec3 scale;
+    glm::vec3 baseScale;
+
+    glm::vec3 bboxMin;
+    glm::vec3 bboxMax;
+
+    bool selectable;
+    bool movable;
+    bool source;
+};
+
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
 // A cena virtual é uma lista de objetos nomeados, guardados em um dicionário
@@ -173,6 +213,9 @@ struct SceneObject
 // objetos dentro da variável g_VirtualScene, e veja na função main() como
 // estes são acessados.
 std::map<std::string, SceneObject> g_VirtualScene;
+std::vector<GameObject> g_GameObjects;
+int g_SelectedObjectIndex = -1;
+int g_HeldObjectIndex = -1;
 
 // Pilha que guardará as matrizes de modelagem.
 std::stack<glm::mat4>  g_MatrixStack;
@@ -199,8 +242,12 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // (yaw, rotação em torno do eixo Y global) e g_CameraPhi (pitch, rotação em
 // torno do eixo "right" local) agora descrevem a DIREÇÃO DE VISÃO da câmera,
 // e não mais a sua posição orbital. A posição efetiva da câmera fica em
-// g_CameraPosition, e é atualizada a cada frame conforme o usuário pressiona
-// as teclas WASD. Veja o loop principal em main() e os callbacks abaixo.
+// g_CameraPosition (vec4) e é atualizada a cada frame conforme o usuário
+// pressiona as teclas WASD.
+//
+// MERGE: o ramo do colega introduziu g_CameraForward (vec3) usado pela lógica
+// de "segurar peça" (held object). Mantemos essa variável e a recalculamos
+// todo frame a partir do view_vector da câmera FPS.
 // ----------------------------------------------------------------------------
 float g_CameraTheta = 0.0f; // Yaw: ângulo no plano XZ (rotação em torno de Y)
 float g_CameraPhi   = 0.0f; // Pitch: elevação acima/abaixo do plano XZ
@@ -208,6 +255,10 @@ float g_CameraPhi   = 0.0f; // Pitch: elevação acima/abaixo do plano XZ
 // Posição da câmera (ponto "c" do sistema de coordenadas da câmera). A altura
 // inicial (Y=1.7) simula a altura aproximada dos olhos de uma pessoa em pé.
 glm::vec4 g_CameraPosition = glm::vec4(0.0f, 1.7f, 0.0f, 1.0f);
+
+// Espelho vec3 do "forward" da câmera, usado pela lógica de peças seguradas
+// (DrawGameObject / loop de render). Recomputado todo frame.
+glm::vec3 g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
 
 // Velocidade de deslocamento WASD da câmera, em unidades de mundo por segundo.
 // Multiplicada por g_DeltaTime no loop de render para garantir velocidade
@@ -340,20 +391,13 @@ int main(int argc, char* argv[])
     //
     LoadShadersFromFiles();
 
-    // Carregamos duas imagens para serem utilizadas como textura
+    // Carregamos imagens para serem utilizadas como textura
     LoadTextureImage("../../data/red_brick_diff_1k.jpg");      // TextureImage0
     LoadTextureImage("../../data/rocky_terrain_02_diff_1k.jpg"); // TextureImage1
-    LoadTextureImage("../../data/textures/laminate_floor_02_diff_1k.png"); // TextureImage2 — chão do museu
+    LoadTextureImage("../../data/textures/laminate_floor_02_diff_1k.png"); // TextureImage2 — chão do museu (laminate)
+    LoadTextureImage("../../data/small_wooden_table_01_4k/textures/small_wooden_table_01_diff_4k.jpg"); // TextureImage3 — mesa de madeira (movida do slot 2 para o 3 no merge)
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
-    ObjModel spheremodel("../../data/sphere.obj");
-    ComputeNormals(&spheremodel);
-    BuildTrianglesAndAddToVirtualScene(&spheremodel);
-
-    ObjModel bunnymodel("../../data/bunny.obj");
-    ComputeNormals(&bunnymodel);
-    BuildTrianglesAndAddToVirtualScene(&bunnymodel);
-
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
@@ -361,9 +405,70 @@ int main(int argc, char* argv[])
     // Cubo unitário usado como bloco de construção da sala do museu (chão e
     // paredes). É instanciado várias vezes com escalas e translações distintas
     // dentro do loop de render — exemplo do requisito "instâncias de objetos".
+    // O OBJ define o shape como "the_cube" (não conflita com "puzzle_cube" do
+    // ramo do colega, abaixo).
     ObjModel cubemodel("../../data/cube.obj");
     ComputeNormals(&cubemodel);
     BuildTrianglesAndAddToVirtualScene(&cubemodel);
+
+    // Mesa de madeira e peças do puzzle (vindos do ramo do colega). Os shapes
+    // dentro destes OBJs têm nomes próprios ("small_wooden_table_01",
+    // "puzzle_cube", "puzzle_triangular_piece", "puzzle_cylinder") e portanto
+    // convivem com o cubo da sala no mesmo g_VirtualScene.
+    ObjModel tablemodel("../../data/small_wooden_table_01_4k/small_wooden_table_01_4k.obj");
+    ComputeNormals(&tablemodel);
+    BuildTrianglesAndAddToVirtualScene(&tablemodel);
+
+    ObjModel puzzlecubemodel("../../data/puzzle_pieces/cube.obj");
+    ComputeNormals(&puzzlecubemodel);
+    BuildTrianglesAndAddToVirtualScene(&puzzlecubemodel);
+
+    ObjModel triangularmodel("../../data/puzzle_pieces/triangular_piece.obj");
+    ComputeNormals(&triangularmodel);
+    BuildTrianglesAndAddToVirtualScene(&triangularmodel);
+
+    ObjModel cylindermodel("../../data/puzzle_pieces/cylinder.obj");
+    ComputeNormals(&cylindermodel);
+    BuildTrianglesAndAddToVirtualScene(&cylindermodel);
+
+    // Peças interativas iniciais (sobre a mesa). Mantemos a configuração do
+    // colega: cada peça é "selecionável", "movível" e marcada como "source"
+    // (peça original, antes de ser duplicada para a mão do jogador).
+    GameObject cube;
+    cube.meshName = "puzzle_cube";
+    cube.objectId = CUBE_PIECE;
+    cube.position = glm::vec3(-0.75f, 1.61f, 0.10f);
+    cube.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cube.scale = glm::vec3(0.35f, 0.35f, 0.35f);
+    cube.baseScale = cube.scale;
+    cube.selectable = true;
+    cube.movable = true;
+    cube.source = true;
+    g_GameObjects.push_back(cube);
+
+    GameObject triangularPiece;
+    triangularPiece.meshName = "puzzle_triangular_piece";
+    triangularPiece.objectId = TRIANGLE_PIECE;
+    triangularPiece.position = glm::vec3(0.05f, 1.61f, 0.08f);
+    triangularPiece.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    triangularPiece.scale = glm::vec3(0.42f, 0.42f, 0.42f);
+    triangularPiece.baseScale = triangularPiece.scale;
+    triangularPiece.selectable = true;
+    triangularPiece.movable = true;
+    triangularPiece.source = true;
+    g_GameObjects.push_back(triangularPiece);
+
+    GameObject cylinder;
+    cylinder.meshName = "puzzle_cylinder";
+    cylinder.objectId = CYLINDER_PIECE;
+    cylinder.position = glm::vec3(0.82f, 1.61f, 0.08f);
+    cylinder.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cylinder.scale = glm::vec3(0.45f, 0.45f, 0.45f);
+    cylinder.baseScale = cylinder.scale;
+    cylinder.selectable = true;
+    cylinder.movable = true;
+    cylinder.source = true;
+    g_GameObjects.push_back(cylinder);
 
     if ( argc > 1 )
     {
@@ -445,6 +550,33 @@ int main(int argc, char* argv[])
         );
         glm::vec4 camera_up_vector = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 
+        // (2.a) Atualiza o espelho vec3 de "forward" usado pela lógica de
+        //       peças seguradas (mecânica do colega). camera_view_vector já
+        //       é unitário por construção, mas normalizamos por segurança
+        //       (caso phi=±π/2 deixe o vetor numericamente quase nulo).
+        g_CameraForward = glm::normalize(glm::vec3(
+            camera_view_vector.x, camera_view_vector.y, camera_view_vector.z));
+
+        // (2.b) Lógica de "segurar peça" (ramo do colega): se houver uma peça
+        //       atualmente segurada, sua posição é fixada a 1.6 m à frente da
+        //       câmera, e sua escala varia com o pitch da câmera — quanto
+        //       mais o jogador olha para cima, maior a peça (efeito inspirado
+        //       em Superliminal). vertical_factor mapeia phi de [-π/2, +π/2]
+        //       para [0, 1]; scale_factor varia entre 0.55x e 1.65x da base.
+        if (g_HeldObjectIndex >= 0)
+        {
+            GameObject& heldObject = g_GameObjects[g_HeldObjectIndex];
+            float vertical_factor = (g_CameraPhi + 3.141592f / 2.0f) / 3.141592f;
+            vertical_factor = std::max(0.0f, std::min(1.0f, vertical_factor));
+            float scale_factor = 0.55f + vertical_factor * 1.10f;
+
+            // Convertemos g_CameraPosition (vec4) para vec3 para somar com o
+            // forward — a mecânica de hold trabalha em coordenadas afins puras.
+            glm::vec3 cam_pos3(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
+            heldObject.position = cam_pos3 + g_CameraForward * 1.6f;
+            heldObject.scale    = heldObject.baseScale * scale_factor;
+        }
+
         // (3) Vetor "horizontal_forward": projeção do view_vector no plano XZ,
         //     usado para o movimento WASD. Forçamos Y=0 para que a câmera não
         //     suba/desça ao apertar W mesmo olhando para cima (estilo FPS
@@ -521,15 +653,6 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(g_projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        // Constantes de object_id — devem casar com os #defines em
-        // src/shader_fragment.glsl. O fragment shader decide o mapeamento de
-        // textura e o tratamento visual de cada objeto a partir deste valor.
-        #define SPHERE 0
-        #define BUNNY  1
-        #define PLANE  2
-        #define FLOOR  3
-        #define WALL   4
-
         // -------------------------------------------------------------------
         // CENA: sala retangular do museu (chão + 4 paredes).
         //
@@ -541,6 +664,11 @@ int main(int argc, char* argv[])
         // Todas as transformações usam APENAS as funções de include/matrices.h
         // (Matrix_Translate, Matrix_Scale, Matrix_Identity), implementadas
         // manualmente. NÃO usamos glm::translate/scale/rotate.
+        //
+        // MERGE: substituiu o piso 5x5 + 3 paredes em planos do colega (que
+        // ficavam logo abaixo na versão original) por esta sala em cubos.
+        // A mesa e as peças do puzzle continuam sendo desenhadas mais abaixo,
+        // dentro desta sala maior.
         // -------------------------------------------------------------------
         const float ROOM_SIZE   = 20.0f; // lado da sala (X e Z), em metros
         const float WALL_HEIGHT = 3.0f;  // altura das paredes
@@ -591,6 +719,29 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALL);
         DrawVirtualObject("the_cube");
+
+        // MERGE: as 3 paredes adicionais em the_plane (parede do fundo +
+        // paredes laterais) que existiam aqui foram removidas — agora as 4
+        // paredes do museu são desenhadas acima como cubos (sala 20×20).
+        //
+        // Mesa principal do puzzle. O OBJ exportado veio em escala grande
+        // (~50 m), por isso o fator 0.03 — a mesa fica com cerca de 1.5 m de
+        // largura, dimensão compatível com as peças posicionadas em y≈1.6.
+        model = Matrix_Translate(0.0f,0.0f,0.0f)
+              * Matrix_Scale(0.03f,0.03f,0.03f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, TABLE);
+        DrawVirtualObject("small_wooden_table_01");
+
+        for (size_t i = 0; i < g_GameObjects.size(); ++i)
+        {
+            int originalObjectId = g_GameObjects[i].objectId;
+            if ((int)i == g_SelectedObjectIndex)
+                g_GameObjects[i].objectId = SELECTED_PIECE;
+
+            DrawGameObject(g_GameObjects[i]);
+            g_GameObjects[i].objectId = originalObjectId;
+        }
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
@@ -710,6 +861,72 @@ void DrawVirtualObject(const char* object_name)
     glBindVertexArray(0);
 }
 
+void DrawGameObject(const GameObject& object)
+{
+    glm::mat4 model = Matrix_Translate(object.position.x, object.position.y, object.position.z)
+                    * Matrix_Rotate_X(object.rotation.x)
+                    * Matrix_Rotate_Y(object.rotation.y)
+                    * Matrix_Rotate_Z(object.rotation.z)
+                    * Matrix_Scale(object.scale.x, object.scale.y, object.scale.z);
+
+    glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+    glUniform1i(g_object_id_uniform, object.objectId);
+    DrawVirtualObject(object.meshName.c_str());
+}
+
+void SelectNextGameObject()
+{
+    if (g_GameObjects.empty())
+        return;
+
+    if (g_HeldObjectIndex >= 0)
+        return;
+
+    int start = g_SelectedObjectIndex;
+    for (size_t offset = 1; offset <= g_GameObjects.size(); ++offset)
+    {
+        int candidate = (start + (int)offset) % (int)g_GameObjects.size();
+        if (g_GameObjects[candidate].selectable)
+        {
+            g_SelectedObjectIndex = candidate;
+            printf("Objeto selecionado: %s\n", g_GameObjects[candidate].meshName.c_str());
+            fflush(stdout);
+            return;
+        }
+    }
+}
+
+void ToggleHeldObject()
+{
+    if (g_HeldObjectIndex >= 0)
+    {
+        printf("Objeto solto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
+        fflush(stdout);
+        g_GameObjects[g_HeldObjectIndex].selectable = false;
+        g_GameObjects[g_HeldObjectIndex].movable = false;
+        g_GameObjects[g_HeldObjectIndex].source = false;
+        g_HeldObjectIndex = -1;
+        g_SelectedObjectIndex = -1;
+        return;
+    }
+
+    if (g_SelectedObjectIndex < 0)
+        SelectNextGameObject();
+
+    if (g_SelectedObjectIndex >= 0 && g_GameObjects[g_SelectedObjectIndex].movable)
+    {
+        GameObject heldCopy = g_GameObjects[g_SelectedObjectIndex];
+        heldCopy.selectable = false;
+        heldCopy.source = false;
+        g_GameObjects.push_back(heldCopy);
+
+        g_HeldObjectIndex = (int)g_GameObjects.size() - 1;
+        g_SelectedObjectIndex = g_HeldObjectIndex;
+        printf("Segurando objeto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
+        fflush(stdout);
+    }
+}
+
 // Função que carrega os shaders de vértices e de fragmentos que serão
 // utilizados para renderização. Veja slides 180-200 do documento Aula_03_Rendering_Pipeline_Grafico.pdf.
 //
@@ -758,6 +975,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3); // slot novo no merge — mesa de madeira
     glUseProgram(0);
 }
 
@@ -1415,6 +1633,18 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_H && action == GLFW_PRESS)
     {
         g_ShowInfoText = !g_ShowInfoText;
+    }
+
+    // Se o usuário apertar a tecla E, pegamos ou soltamos a peça selecionada.
+    if (key == GLFW_KEY_E && action == GLFW_PRESS)
+    {
+        ToggleHeldObject();
+    }
+
+    // Se o usuário apertar a tecla C, alternamos a peça selecionada.
+    if (key == GLFW_KEY_C && action == GLFW_PRESS)
+    {
+        SelectNextGameObject();
     }
 
     // Se o usuário apertar a tecla R, recarregamos os shaders dos arquivos "shader_fragment.glsl" e "shader_vertex.glsl".

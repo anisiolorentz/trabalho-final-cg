@@ -22,21 +22,35 @@ uniform mat4 projection;
 // Os três primeiros são herdados do template original; FLOOR e WALL foram
 // adicionados para a cena do museu (chão e paredes da sala). Estes valores
 // devem ser idênticos aos #defines correspondentes em src/main.cpp.
-#define SPHERE 0
-#define BUNNY  1
-#define PLANE  2
-#define FLOOR  3
-#define WALL   4
+// IDs do HEAD (FLOOR/WALL para a sala em cubos) e do ramo do colega
+// (TABLE + peças do puzzle) são renumerados aqui para que coexistam sem
+// colidir. Devem ficar idênticos aos #defines em src/main.cpp.
+#define SPHERE         0
+#define BUNNY          1
+#define PLANE          2
+#define FLOOR          3
+#define WALL           4
+#define TABLE          5
+#define CUBE_PIECE     6
+#define TRIANGLE_PIECE 7
+#define CYLINDER_PIECE 8
+#define SELECTED_PIECE 9
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
 uniform vec4 bbox_min;
 uniform vec4 bbox_max;
 
-// Variáveis para acesso das imagens de textura
+// Variáveis para acesso das imagens de textura.
+//   TextureImage0 = red_brick (paredes)
+//   TextureImage1 = rocky_terrain (legado, PLANE)
+//   TextureImage2 = laminate_floor (chão da sala em cubos)
+//   TextureImage3 = small_wooden_table (mesa do puzzle — slot novo
+//                   adicionado no merge para não conflitar com o laminate)
 uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
+uniform sampler2D TextureImage3;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -173,6 +187,56 @@ void main()
         U = fract(u_raw);
         V = fract(v_raw);
         Kd0 = texture(TextureImage0, vec2(U,V)).rgb; // textura red_brick
+    }
+    else if ( object_id == TABLE )
+    {
+        // Mesa do puzzle: UVs vêm direto do OBJ exportado. A textura de
+        // madeira foi movida para TextureImage3 no merge, pois TextureImage2
+        // passou a hospedar o laminate do chão.
+        U = texcoords.x;
+        V = texcoords.y;
+        Kd0 = texture(TextureImage3, vec2(U,V)).rgb;
+    }
+    else if ( object_id == CUBE_PIECE )
+    {
+        // Cubo verde.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.15, 0.85, 0.25), 0.70);
+    }
+    else if ( object_id == TRIANGLE_PIECE )
+    {
+        // Peça triangular vermelha.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.95, 0.15, 0.10), 0.70);
+    }
+    else if ( object_id == CYLINDER_PIECE )
+    {
+        // Cilindro amarelo.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(1.00, 0.82, 0.05), 0.70);
+    }
+    else if ( object_id == SELECTED_PIECE )
+    {
+        // Mesmo material das peças, com realce visual para feedback de seleção.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.20, 0.85, 1.00), 0.75);
+    }
+    else
+    {
+        // Fallback para object_ids desconhecidos: magenta, fácil de notar.
+        Kd0 = vec3(1.0, 0.0, 1.0);
     }
 
     // Equação de Iluminação
