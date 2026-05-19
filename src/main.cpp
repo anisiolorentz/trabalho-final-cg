@@ -38,6 +38,7 @@
 // Headers da biblioteca GLM: criação de matrizes e vetores.
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <glm/geometric.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 // Headers da biblioteca para carregar modelos obj
@@ -119,6 +120,9 @@ void ComputeNormals(ObjModel* model); // Computa normais de um ObjModel, caso n�
 void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, criando um programa de GPU
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
 void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
+void DrawGameObject(const struct GameObject& object); // Desenha uma instância lógica da cena do jogo
+void SelectNextGameObject(); // Seleciona visualmente a próxima peça manipulável
+void ToggleHeldObject(); // Alterna entre pegar e soltar a peça selecionada
 GLuint LoadShader_Vertex(const char* filename);   // Carrega um vertex shader
 GLuint LoadShader_Fragment(const char* filename); // Carrega um fragment shader
 void LoadShader(const char* filename, GLuint shader_id); // Função utilizada pelas duas acima
@@ -166,6 +170,37 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+enum ObjectId
+{
+    SPHERE = 0,
+    BUNNY = 1,
+    PLANE = 2,
+    TABLE = 3,
+    WALL = 4,
+    CUBE_PIECE = 5,
+    TRIANGLE_PIECE = 6,
+    CYLINDER_PIECE = 7,
+    SELECTED_PIECE = 8
+};
+
+struct GameObject
+{
+    std::string meshName;
+    int objectId;
+
+    glm::vec3 position;
+    glm::vec3 rotation;
+    glm::vec3 scale;
+    glm::vec3 baseScale;
+
+    glm::vec3 bboxMin;
+    glm::vec3 bboxMax;
+
+    bool selectable;
+    bool movable;
+    bool source;
+};
+
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
 // A cena virtual é uma lista de objetos nomeados, guardados em um dicionário
@@ -173,6 +208,9 @@ struct SceneObject
 // objetos dentro da variável g_VirtualScene, e veja na função main() como
 // estes são acessados.
 std::map<std::string, SceneObject> g_VirtualScene;
+std::vector<GameObject> g_GameObjects;
+int g_SelectedObjectIndex = -1;
+int g_HeldObjectIndex = -1;
 
 // Pilha que guardará as matrizes de modelagem.
 std::stack<glm::mat4>  g_MatrixStack;
@@ -198,6 +236,8 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.20f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 5.5f; // Distância da câmera para a origem
+glm::vec3 g_CameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
 
 // Variáveis que controlam rotação do antebraço
 float g_ForearmAngleZ = 0.0f;
@@ -324,6 +364,42 @@ int main(int argc, char* argv[])
     ComputeNormals(&cylindermodel);
     BuildTrianglesAndAddToVirtualScene(&cylindermodel);
 
+    GameObject cube;
+    cube.meshName = "puzzle_cube";
+    cube.objectId = CUBE_PIECE;
+    cube.position = glm::vec3(-0.75f, 1.61f, 0.10f);
+    cube.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cube.scale = glm::vec3(0.35f, 0.35f, 0.35f);
+    cube.baseScale = cube.scale;
+    cube.selectable = true;
+    cube.movable = true;
+    cube.source = true;
+    g_GameObjects.push_back(cube);
+
+    GameObject triangularPiece;
+    triangularPiece.meshName = "puzzle_triangular_piece";
+    triangularPiece.objectId = TRIANGLE_PIECE;
+    triangularPiece.position = glm::vec3(0.05f, 1.61f, 0.08f);
+    triangularPiece.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    triangularPiece.scale = glm::vec3(0.42f, 0.42f, 0.42f);
+    triangularPiece.baseScale = triangularPiece.scale;
+    triangularPiece.selectable = true;
+    triangularPiece.movable = true;
+    triangularPiece.source = true;
+    g_GameObjects.push_back(triangularPiece);
+
+    GameObject cylinder;
+    cylinder.meshName = "puzzle_cylinder";
+    cylinder.objectId = CYLINDER_PIECE;
+    cylinder.position = glm::vec3(0.82f, 1.61f, 0.08f);
+    cylinder.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cylinder.scale = glm::vec3(0.45f, 0.45f, 0.45f);
+    cylinder.baseScale = cylinder.scale;
+    cylinder.selectable = true;
+    cylinder.movable = true;
+    cylinder.source = true;
+    g_GameObjects.push_back(cylinder);
+
     if ( argc > 1 )
     {
         ObjModel model(argv[1]);
@@ -377,6 +453,19 @@ int main(int argc, char* argv[])
         glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.55f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        g_CameraPosition = glm::vec3(camera_position_c.x, camera_position_c.y, camera_position_c.z);
+        g_CameraForward = glm::normalize(glm::vec3(camera_view_vector.x, camera_view_vector.y, camera_view_vector.z));
+
+        if (g_HeldObjectIndex >= 0)
+        {
+            GameObject& heldObject = g_GameObjects[g_HeldObjectIndex];
+            float vertical_factor = (g_CameraPhi + 3.141592f / 2.0f) / 3.141592f;
+            vertical_factor = std::max(0.0f, std::min(1.0f, vertical_factor));
+            float scale_factor = 0.55f + vertical_factor * 1.10f;
+
+            heldObject.position = g_CameraPosition + g_CameraForward * 1.6f;
+            heldObject.scale = heldObject.baseScale * scale_factor;
+        }
 
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slides 2-14, 184-190 e 236-242 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
@@ -419,13 +508,6 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(g_view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(g_projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        #define SPHERE 0
-        #define BUNNY  1
-        #define PLANE  2
-        #define TABLE  3
-        #define WALL   4
-        #define PUZZLE_PIECE 5
-
         // Piso da cena base.
         model = Matrix_Translate(0.0f,0.0f,0.0f)
               * Matrix_Scale(5.0f,1.0f,5.0f);
@@ -463,24 +545,15 @@ int main(int argc, char* argv[])
         glUniform1i(g_object_id_uniform, TABLE);
         DrawVirtualObject("small_wooden_table_01");
 
-        // Peças iniciais do puzzle sobre a mesa.
-        model = Matrix_Translate(-0.75f,1.61f,0.10f)
-              * Matrix_Scale(0.35f,0.35f,0.35f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
-        DrawVirtualObject("puzzle_cube");
+        for (size_t i = 0; i < g_GameObjects.size(); ++i)
+        {
+            int originalObjectId = g_GameObjects[i].objectId;
+            if ((int)i == g_SelectedObjectIndex)
+                g_GameObjects[i].objectId = SELECTED_PIECE;
 
-        model = Matrix_Translate(0.05f,1.61f,0.08f)
-              * Matrix_Scale(0.42f,0.42f,0.42f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
-        DrawVirtualObject("puzzle_triangular_piece");
-
-        model = Matrix_Translate(0.82f,1.61f,0.08f)
-              * Matrix_Scale(0.45f,0.45f,0.45f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
-        DrawVirtualObject("puzzle_cylinder");
+            DrawGameObject(g_GameObjects[i]);
+            g_GameObjects[i].objectId = originalObjectId;
+        }
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
@@ -598,6 +671,72 @@ void DrawVirtualObject(const char* object_name)
     // "Desligamos" o VAO, evitando assim que operações posteriores venham a
     // alterar o mesmo. Isso evita bugs.
     glBindVertexArray(0);
+}
+
+void DrawGameObject(const GameObject& object)
+{
+    glm::mat4 model = Matrix_Translate(object.position.x, object.position.y, object.position.z)
+                    * Matrix_Rotate_X(object.rotation.x)
+                    * Matrix_Rotate_Y(object.rotation.y)
+                    * Matrix_Rotate_Z(object.rotation.z)
+                    * Matrix_Scale(object.scale.x, object.scale.y, object.scale.z);
+
+    glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+    glUniform1i(g_object_id_uniform, object.objectId);
+    DrawVirtualObject(object.meshName.c_str());
+}
+
+void SelectNextGameObject()
+{
+    if (g_GameObjects.empty())
+        return;
+
+    if (g_HeldObjectIndex >= 0)
+        return;
+
+    int start = g_SelectedObjectIndex;
+    for (size_t offset = 1; offset <= g_GameObjects.size(); ++offset)
+    {
+        int candidate = (start + (int)offset) % (int)g_GameObjects.size();
+        if (g_GameObjects[candidate].selectable)
+        {
+            g_SelectedObjectIndex = candidate;
+            printf("Objeto selecionado: %s\n", g_GameObjects[candidate].meshName.c_str());
+            fflush(stdout);
+            return;
+        }
+    }
+}
+
+void ToggleHeldObject()
+{
+    if (g_HeldObjectIndex >= 0)
+    {
+        printf("Objeto solto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
+        fflush(stdout);
+        g_GameObjects[g_HeldObjectIndex].selectable = false;
+        g_GameObjects[g_HeldObjectIndex].movable = false;
+        g_GameObjects[g_HeldObjectIndex].source = false;
+        g_HeldObjectIndex = -1;
+        g_SelectedObjectIndex = -1;
+        return;
+    }
+
+    if (g_SelectedObjectIndex < 0)
+        SelectNextGameObject();
+
+    if (g_SelectedObjectIndex >= 0 && g_GameObjects[g_SelectedObjectIndex].movable)
+    {
+        GameObject heldCopy = g_GameObjects[g_SelectedObjectIndex];
+        heldCopy.selectable = false;
+        heldCopy.source = false;
+        g_GameObjects.push_back(heldCopy);
+
+        g_HeldObjectIndex = (int)g_GameObjects.size() - 1;
+        g_SelectedObjectIndex = g_HeldObjectIndex;
+        printf("Segurando objeto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
+        fflush(stdout);
+    }
 }
 
 // Função que carrega os shaders de vértices e de fragmentos que serão
@@ -1315,6 +1454,18 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_H && action == GLFW_PRESS)
     {
         g_ShowInfoText = !g_ShowInfoText;
+    }
+
+    // Se o usuário apertar a tecla E, pegamos ou soltamos a peça selecionada.
+    if (key == GLFW_KEY_E && action == GLFW_PRESS)
+    {
+        ToggleHeldObject();
+    }
+
+    // Se o usuário apertar a tecla C, alternamos a peça selecionada.
+    if (key == GLFW_KEY_C && action == GLFW_PRESS)
+    {
+        SelectNextGameObject();
     }
 
     // Se o usuário apertar a tecla R, recarregamos os shaders dos arquivos "shader_fragment.glsl" e "shader_vertex.glsl".

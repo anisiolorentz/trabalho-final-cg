@@ -24,7 +24,10 @@ uniform mat4 projection;
 #define PLANE  2
 #define TABLE  3
 #define WALL   4
-#define PUZZLE_PIECE 5
+#define CUBE_PIECE 5
+#define TRIANGLE_PIECE 6
+#define CYLINDER_PIECE 7
+#define SELECTED_PIECE 8
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -155,14 +158,41 @@ void main()
 		// Obtemos a refletância difusa a partir da textura de tijolos.
 		Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
     }
-    else if ( object_id == PUZZLE_PIECE )
+    else if ( object_id == CUBE_PIECE )
     {
-        // Mapeamento planar simples para as peças iniciais do puzzle.
+        // Cubo verde.
         U = position_model.x * 1.5;
         V = position_model.z * 1.5 + position_model.y;
 
         vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = mix(base, vec3(0.95, 0.72, 0.18), 0.55);
+        Kd0 = mix(base, vec3(0.15, 0.85, 0.25), 0.70);
+    }
+    else if ( object_id == TRIANGLE_PIECE )
+    {
+        // Peça triangular vermelha.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.95, 0.15, 0.10), 0.70);
+    }
+    else if ( object_id == CYLINDER_PIECE )
+    {
+        // Cilindro amarelo.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(1.00, 0.82, 0.05), 0.70);
+    }
+    else if ( object_id == SELECTED_PIECE )
+    {
+        // Mesmo material das peças, com realce visual para feedback de seleção.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.20, 0.85, 1.00), 0.75);
     }
     else
     {
