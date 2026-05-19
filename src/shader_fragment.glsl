@@ -22,6 +22,9 @@ uniform mat4 projection;
 #define SPHERE 0
 #define BUNNY  1
 #define PLANE  2
+#define TABLE  3
+#define WALL   4
+#define PUZZLE_PIECE 5
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -133,6 +136,37 @@ void main()
 
 		// Obtemos a refletância difusa a partir da leitura da imagem TextureImage1
 		Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
+    }
+    else if ( object_id == TABLE )
+    {
+        // Coordenadas de textura da mesa, obtidas do arquivo OBJ exportado.
+        U = texcoords.x;
+        V = texcoords.y;
+
+		// Obtemos a refletância difusa a partir da textura de madeira.
+		Kd0 = texture(TextureImage2, vec2(U,V)).rgb;
+    }
+    else if ( object_id == WALL )
+    {
+        // Repetimos a textura nas paredes para evitar esticamento visual.
+        U = texcoords.x * 3.0;
+        V = texcoords.y * 2.0;
+
+		// Obtemos a refletância difusa a partir da textura de tijolos.
+		Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+    }
+    else if ( object_id == PUZZLE_PIECE )
+    {
+        // Mapeamento planar simples para as peças iniciais do puzzle.
+        U = position_model.x * 1.5;
+        V = position_model.z * 1.5 + position_model.y;
+
+        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
+        Kd0 = mix(base, vec3(0.95, 0.72, 0.18), 0.55);
+    }
+    else
+    {
+        Kd0 = vec3(1.0, 0.0, 1.0);
     }
 
     // Equação de Iluminação

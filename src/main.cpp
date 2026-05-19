@@ -196,8 +196,8 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
 float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
-float g_CameraDistance = 3.5f; // Distância da câmera para a origem
+float g_CameraPhi = 0.20f;   // Ângulo em relação ao eixo Y
+float g_CameraDistance = 5.5f; // Distância da câmera para a origem
 
 // Variáveis que controlam rotação do antebraço
 float g_ForearmAngleZ = 0.0f;
@@ -298,22 +298,31 @@ int main(int argc, char* argv[])
     //
     LoadShadersFromFiles();
 
-    // Carregamos duas imagens para serem utilizadas como textura
+    // Carregamos imagens para serem utilizadas como textura
     LoadTextureImage("../../data/red_brick_diff_1k.jpg");      // TextureImage0
     LoadTextureImage("../../data/rocky_terrain_02_diff_1k.jpg"); // TextureImage1
+    LoadTextureImage("../../data/small_wooden_table_01_4k/textures/small_wooden_table_01_diff_4k.jpg"); // TextureImage2
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
-    ObjModel spheremodel("../../data/sphere.obj");
-    ComputeNormals(&spheremodel);
-    BuildTrianglesAndAddToVirtualScene(&spheremodel);
-
-    ObjModel bunnymodel("../../data/bunny.obj");
-    ComputeNormals(&bunnymodel);
-    BuildTrianglesAndAddToVirtualScene(&bunnymodel);
-
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
+
+    ObjModel tablemodel("../../data/small_wooden_table_01_4k/small_wooden_table_01_4k.obj");
+    ComputeNormals(&tablemodel);
+    BuildTrianglesAndAddToVirtualScene(&tablemodel);
+
+    ObjModel cubemodel("../../data/puzzle_pieces/cube.obj");
+    ComputeNormals(&cubemodel);
+    BuildTrianglesAndAddToVirtualScene(&cubemodel);
+
+    ObjModel triangularmodel("../../data/puzzle_pieces/triangular_piece.obj");
+    ComputeNormals(&triangularmodel);
+    BuildTrianglesAndAddToVirtualScene(&triangularmodel);
+
+    ObjModel cylindermodel("../../data/puzzle_pieces/cylinder.obj");
+    ComputeNormals(&cylindermodel);
+    BuildTrianglesAndAddToVirtualScene(&cylindermodel);
 
     if ( argc > 1 )
     {
@@ -365,7 +374,7 @@ int main(int argc, char* argv[])
         // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
         // Veja slides 195-227 e 229-234 do documento Aula_08_Sistemas_de_Coordenadas.pdf.
         glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.55f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
 
@@ -413,28 +422,65 @@ int main(int argc, char* argv[])
         #define SPHERE 0
         #define BUNNY  1
         #define PLANE  2
+        #define TABLE  3
+        #define WALL   4
+        #define PUZZLE_PIECE 5
 
-        // Desenhamos o modelo da esfera
-        model = Matrix_Translate(-1.0f,0.0f,0.0f)
-              * Matrix_Rotate_Z(0.6f)
-              * Matrix_Rotate_X(0.2f)
-              * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, SPHERE);
-        DrawVirtualObject("the_sphere");
-
-        // Desenhamos o modelo do coelho
-        model = Matrix_Translate(1.0f,0.0f,0.0f)
-              * Matrix_Rotate_X(g_AngleX + (float)glfwGetTime() * 0.1f);
-        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(g_object_id_uniform, BUNNY);
-        DrawVirtualObject("the_bunny");
-
-        // Desenhamos o plano do chão
-        model = Matrix_Translate(0.0f,-1.1f,0.0f);
+        // Piso da cena base.
+        model = Matrix_Translate(0.0f,0.0f,0.0f)
+              * Matrix_Scale(5.0f,1.0f,5.0f);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, PLANE);
         DrawVirtualObject("the_plane");
+
+        // Parede do fundo.
+        model = Matrix_Translate(0.0f,1.5f,-5.0f)
+              * Matrix_Rotate_X(3.141592f / 2.0f)
+              * Matrix_Scale(5.0f,1.0f,1.5f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, WALL);
+        DrawVirtualObject("the_plane");
+
+        // Paredes laterais.
+        model = Matrix_Translate(-5.0f,1.5f,0.0f)
+              * Matrix_Rotate_Z(-3.141592f / 2.0f)
+              * Matrix_Scale(1.5f,1.0f,5.0f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, WALL);
+        DrawVirtualObject("the_plane");
+
+        model = Matrix_Translate(5.0f,1.5f,0.0f)
+              * Matrix_Rotate_Z(3.141592f / 2.0f)
+              * Matrix_Scale(1.5f,1.0f,5.0f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, WALL);
+        DrawVirtualObject("the_plane");
+
+        // Mesa principal do puzzle. O OBJ exportado veio em escala grande.
+        model = Matrix_Translate(0.0f,0.0f,0.0f)
+              * Matrix_Scale(0.03f,0.03f,0.03f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, TABLE);
+        DrawVirtualObject("small_wooden_table_01");
+
+        // Peças iniciais do puzzle sobre a mesa.
+        model = Matrix_Translate(-0.75f,1.61f,0.10f)
+              * Matrix_Scale(0.35f,0.35f,0.35f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
+        DrawVirtualObject("puzzle_cube");
+
+        model = Matrix_Translate(0.05f,1.61f,0.08f)
+              * Matrix_Scale(0.42f,0.42f,0.42f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
+        DrawVirtualObject("puzzle_triangular_piece");
+
+        model = Matrix_Translate(0.82f,1.61f,0.08f)
+              * Matrix_Scale(0.45f,0.45f,0.45f);
+        glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, PUZZLE_PIECE);
+        DrawVirtualObject("puzzle_cylinder");
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
