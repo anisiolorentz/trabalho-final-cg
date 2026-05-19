@@ -18,10 +18,15 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-// Identificador que define qual objeto está sendo desenhado no momento
+// Identificador que define qual objeto está sendo desenhado no momento.
+// Os três primeiros são herdados do template original; FLOOR e WALL foram
+// adicionados para a cena do museu (chão e paredes da sala). Estes valores
+// devem ser idênticos aos #defines correspondentes em src/main.cpp.
 #define SPHERE 0
 #define BUNNY  1
 #define PLANE  2
+#define FLOOR  3
+#define WALL   4
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -133,6 +138,41 @@ void main()
 
 		// Obtemos a refletância difusa a partir da leitura da imagem TextureImage1
 		Kd0 = texture(TextureImage1, vec2(U,V)).rgb;
+    }
+    else if ( object_id == FLOOR )
+    {
+        // Chão do museu: usamos a posição em coordenadas de MUNDO (após
+        // aplicar a matriz model) para projeção planar no plano XZ. Dividimos
+        // por um fator (escala em metros por repetição da textura) e aplicamos
+        // fract() para fazer "tiling" — a textura se repete ao longo do chão
+        // sem depender do modo de wrap configurado no sampler (que está como
+        // CLAMP_TO_EDGE em LoadTextureImage()).
+        U = fract(position_world.x / 2.0);
+        V = fract(position_world.z / 2.0);
+        Kd0 = texture(TextureImage2, vec2(U,V)).rgb; // textura laminate_floor
+    }
+    else if ( object_id == WALL )
+    {
+        // Paredes do museu: projeção planar baseada em coordenadas de mundo.
+        // Decidimos o plano de projeção pela orientação da normal: paredes
+        // perpendiculares ao eixo X usam (Z,Y); paredes perpendiculares ao
+        // eixo Z usam (X,Y). Assim a textura se repete uniformemente em
+        // ambos os tipos de parede, independentemente da escala do cubo.
+        // Usamos fract() para tiling pelo mesmo motivo do chão.
+        float u_raw, v_raw;
+        if (abs(n.x) > abs(n.z))
+        {
+            u_raw = position_world.z / 2.0;
+            v_raw = position_world.y / 2.0;
+        }
+        else
+        {
+            u_raw = position_world.x / 2.0;
+            v_raw = position_world.y / 2.0;
+        }
+        U = fract(u_raw);
+        V = fract(v_raw);
+        Kd0 = texture(TextureImage0, vec2(U,V)).rgb; // textura red_brick
     }
 
     // Equação de Iluminação
