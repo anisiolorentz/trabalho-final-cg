@@ -1,33 +1,53 @@
 {
   "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 10,
+    "patch": 0
+  },
   "configurePresets": [
     {
-      "name": "default-config",
-      "binaryDir": "${sourceDir}/build"
+      "name": "msys2-ucrt64-debug",
+      "displayName": "MSYS2 UCRT64 Debug",
+      "description": "Configure with Ninja and the MSYS2 UCRT64 GCC toolchain.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "C:/msys64/ucrt64/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "C:/msys64/ucrt64/bin/g++.exe"
+      },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "default-build",
-      "configurePreset": "default-config"
+      "name": "msys2-ucrt64-build",
+      "displayName": "MSYS2 UCRT64 Build",
+      "configurePreset": "msys2-ucrt64-debug"
     },
     {
-      "name": "build-run",
-      "configurePreset": "default-config",
-      "targets": ["run"]
+      "name": "msys2-ucrt64-run",
+      "displayName": "MSYS2 UCRT64 Build Run",
+      "configurePreset": "msys2-ucrt64-debug",
+      "targets": [
+        "run"
+      ]
     }
   ],
   "workflowPresets": [
     {
-      "name": "configure-build-run",
+      "name": "msys2-ucrt64-configure-build",
       "steps": [
         {
           "type": "configure",
-          "name": "default-config"
+          "name": "msys2-ucrt64-debug"
         },
         {
           "type": "build",
-          "name": "build-run"
+          "name": "msys2-ucrt64-build"
         }
       ]
     }
