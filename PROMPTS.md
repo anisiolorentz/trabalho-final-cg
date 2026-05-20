@@ -1,14 +1,16 @@
-This is an OpenGL C++ project. We are building a 3D virtual museum.                                                                                  
-Use the base code structure already present in the working directory.                                                                                   
-                                                                                                                                                          
-Do NOT use glm::lookAt, glm::perspective, glm::rotate, glm::translate,                                                                                  
-glm::scale, gluLookAt, or any similar library functions. All matrices
-must be implemented manually.                                                                                                                           
-                                                                                                                                                          
-Implement the following, in this order:                                                                                                                 
-1. A first-person free camera controlled by WASD and mouse, using a manually computed View matrix.                                                                                                                       
-2. A perspective projection using a manually computed Projection matrix.                                                                                
+ao pegar/soltar a peça com E o objeto está muito grande, e soltando com E a cor azul ainda persiste no objeto, cada um deve ter um cor e quando soltar deve se manter na cor original e não da cor de seleção C, circulo amarelo, cubo verde, triangulo vermelho, ao pegar com E o tamanho deve ser muito menor, atualmente está ocupando boa parte da cena
 
-3. A simple scene with a floor plane and box-shaped walls so the environment is visible.
+Dado os requisitos, agora as peças da mesa precisam funcionar como fontes reutilizáveis.
 
-Replace the current floor texture with ../../data/textures/laminate_floor_02_diff_1k.png. Use the existing texture loading function already present in the codebase. Apply the texture to the floor mesh. Do not change anything else. Do not run any git commands.
+Comportamento novo:
+
+C seleciona uma peça da mesa.
+E cria uma cópia segurada daquela peça.
+A peça original continua na mesa.
+A cópia acompanha a câmera e muda de escala.
+E solta a cópia no mundo.
+A cópia solta fica fixa e deixa de ser selecionável por enquanto.
+
+implemente funcionalidade do objeto crescer conforme oscilação da camera no eixo y, olhando para cima aumenta, para baixo diminui
+
+o "pegar" objeto com E deixe ele mais longe ao centro na cena para ficar mais visivel a visualização do objeto aumentando, a seleção com C, altere também para ser possível selecionar como um "alvo" como se fosse uma mira no centro da tela, onde ao "mirar" /olhar para o objeto específico na devida marcada e apertar E, pegue o objeto
