@@ -121,6 +121,7 @@ void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, cria
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
 void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
 void DrawGameObject(const struct GameObject& object); // Desenha uma instância lógica da cena do jogo
+int FindTargetedGameObject(); // Retorna a peça selecionável sob a mira central
 void SelectNextGameObject(); // Seleciona visualmente a próxima peça manipulável
 void ToggleHeldObject(); // Alterna entre pegar e soltar a peça selecionada
 GLuint LoadShader_Vertex(const char* filename);   // Carrega um vertex shader
@@ -561,20 +562,25 @@ int main(int argc, char* argv[])
         //       atualmente segurada, sua posição é fixada a 1.6 m à frente da
         //       câmera, e sua escala varia com o pitch da câmera — quanto
         //       mais o jogador olha para cima, maior a peça (efeito inspirado
-        //       em Superliminal). vertical_factor mapeia phi de [-π/2, +π/2]
-        //       para [0, 1]; scale_factor varia entre 0.55x e 1.65x da base.
+        //       em Superliminal). vertical_factor mapeia a componente Y do
+        //       forward da câmera para [0, 1]; scale_factor varia entre 0.20x
+        //       e 4.00x da base para deixar o efeito bem evidente.
         if (g_HeldObjectIndex >= 0)
         {
             GameObject& heldObject = g_GameObjects[g_HeldObjectIndex];
-            float vertical_factor = (g_CameraPhi + 3.141592f / 2.0f) / 3.141592f;
+            float vertical_factor = (g_CameraForward.y + 1.0f) / 2.0f;
             vertical_factor = std::max(0.0f, std::min(1.0f, vertical_factor));
-            float scale_factor = 0.55f + vertical_factor * 1.10f;
+            float scale_factor = 0.20f + vertical_factor * 3.80f;
 
             // Convertemos g_CameraPosition (vec4) para vec3 para somar com o
             // forward — a mecânica de hold trabalha em coordenadas afins puras.
             glm::vec3 cam_pos3(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
-            heldObject.position = cam_pos3 + g_CameraForward * 1.6f;
+            heldObject.position = cam_pos3 + g_CameraForward * 3.0f;
             heldObject.scale    = heldObject.baseScale * scale_factor;
+        }
+        else
+        {
+            g_SelectedObjectIndex = FindTargetedGameObject();
         }
 
         // (3) Vetor "horizontal_forward": projeção do view_vector no plano XZ,
@@ -874,6 +880,37 @@ void DrawGameObject(const GameObject& object)
     DrawVirtualObject(object.meshName.c_str());
 }
 
+int FindTargetedGameObject()
+{
+    glm::vec3 camera_position(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
+    int best_index = -1;
+    float best_depth = std::numeric_limits<float>::max();
+
+    for (size_t i = 0; i < g_GameObjects.size(); ++i)
+    {
+        const GameObject& object = g_GameObjects[i];
+        if (!object.selectable)
+            continue;
+
+        glm::vec3 to_object = object.position - camera_position;
+        float depth = glm::dot(to_object, g_CameraForward);
+        if (depth <= 0.0f || depth > 8.0f)
+            continue;
+
+        glm::vec3 closest_point = camera_position + g_CameraForward * depth;
+        float distance_to_ray = glm::length(object.position - closest_point);
+        float object_radius = std::max(object.scale.x, std::max(object.scale.y, object.scale.z)) * 0.8f + 0.20f;
+
+        if (distance_to_ray <= object_radius && depth < best_depth)
+        {
+            best_depth = depth;
+            best_index = (int)i;
+        }
+    }
+
+    return best_index;
+}
+
 void SelectNextGameObject()
 {
     if (g_GameObjects.empty())
@@ -881,6 +918,15 @@ void SelectNextGameObject()
 
     if (g_HeldObjectIndex >= 0)
         return;
+
+    int targeted_index = FindTargetedGameObject();
+    if (targeted_index >= 0)
+    {
+        g_SelectedObjectIndex = targeted_index;
+        printf("Objeto selecionado pela mira: %s\n", g_GameObjects[targeted_index].meshName.c_str());
+        fflush(stdout);
+        return;
+    }
 
     int start = g_SelectedObjectIndex;
     for (size_t offset = 1; offset <= g_GameObjects.size(); ++offset)
@@ -911,7 +957,7 @@ void ToggleHeldObject()
     }
 
     if (g_SelectedObjectIndex < 0)
-        SelectNextGameObject();
+        g_SelectedObjectIndex = FindTargetedGameObject();
 
     if (g_SelectedObjectIndex >= 0 && g_GameObjects[g_SelectedObjectIndex].movable)
     {
