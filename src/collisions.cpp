@@ -11,7 +11,7 @@ CollisionAABB MakeAABBFromCenterHalfExtents(glm::vec3 center, glm::vec3 half_ext
     return box;
 }
 
-CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wall_thickness, float player_radius)
+CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wall_height, float wall_thickness, float player_radius)
 {
     // A sala desenhada em main.cpp possui paredes centradas nas bordas.
     // Esta caixa representa somente a area interna caminhavel, ja descontando
@@ -24,7 +24,7 @@ CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wal
 
     CollisionAABB box;
     box.min = glm::vec3(-limit_x, 0.0f, -limit_z);
-    box.max = glm::vec3( limit_x, 3.0f,  limit_z);
+    box.max = glm::vec3( limit_x, wall_height,  limit_z);
     return box;
 }
 

@@ -1,24 +1,15 @@
+## 4
 
-## 2026-05-21 - Refatoracao HUD e ajustes de objeto segurado
+PROMPT: Ajustar a rampa ao ser pega para que ela fique sempre a frente do jogador, alinhada com a direcao da camera, facilitando posicionar a rampa como caminho do puzzle e corrigir movimento do jogador sobre a rampa para permitir subir pela inclinacao, melhorar precisao dos pulos e deixar o pulo menos "lunar", aumentando ligeiramente a gravidade/queda e ajustando a velocidade de impulso.
 
-PROMPT: Remover a coloracao azul ao focar/selecionar objetos, refatorar significativamente `main.cpp` separando responsabilidades em mais de um arquivo sem alterar regras de negocio, refinar novamente a maozinha do HUD para um estilo mais limpo, impedir que o objeto segurado atravesse o chao ou saia do plano ao olhar para baixo/lados, e ajustar o objeto segurado para ficar levemente mais longe, crescer mais ao olhar para cima e considerar tambem a distancia do jogador para aumentar a percepcao de escala.
+## 3
 
-## 2026-05-21 - Repegar pecas e reforcar escala por olhar
+PROMPT: Permitir que o jogador pule e consiga andar sobre objetos geometricos soltos/empilhados, mantendo a ideia inicial do puzzle de construir um caminho com pecas. Implementar gravidade simples no jogador, suporte vertical sobre chao/mesa/pecas e ajuste de colisao para nao bloquear horizontalmente quando o jogador esta em cima de uma peca e corrigir pequeno afundamento visual do cubo ao soltar no chao; a peca deve repousar ligeiramente acima do plano, sem atravessar ou aparentar penetrar o piso.
 
-PROMPT: Depois de soltar uma peca geometrica no mundo, permitir pega-la novamente. Refinar o estilo visual da mao do HUD, deixar o objeto segurado mais distante da camera e tornar mais agressiva a mudanca de volume conforme o jogador olha para cima/baixo, usando a variacao do eixo Y da direcao da camera.
+## 2
 
-## 2026-05-21 - HUD de alvo e estados de interacao
+PROMPT: Ajustar a escala perceptual do jogador/camera em relacao a mesa e ao espaco. A camera atual parece pequena demais, quase do tamanho da mesa; considerando uma pessoa normal, a altura dos olhos/jogador deve ficar aproximadamente o dobro da altura da mesa e corrigir colisao e gravidade das pecas soltas: objetos nao devem ficar flutuando acima do chao, devem encostar no plano, e ao empilhar uma peca sobre outra nao devem atravessar. Ajustar AABBs e logica de suporte para uma fisica simplificada mais estavel.
 
-PROMPT: A cada alteracao orientada, adicionar uma nova entrada em `PROMPTS.md`. Implementar um alvo fixo na tela: circulo no estado neutro, icone pequeno de mao aberta com texto "grab" quando a mira aponta para um objeto geometrico manipulavel, e mao fechada sem texto enquanto o jogador segura uma copia da peca. Ao soltar, voltar ao estado inicial conforme a mira.
+## 1
 
-## 2026-05-20 - Colisao com mesa e pecas soltas
-
-PROMPT: Implementar colisao do jogador com a mesa e com os objetos geometricos soltos no mundo, manter as pecas originais da mesa como fontes reutilizaveis sem bloquear individualmente, afastar o ponto inicial do jogador, mover a mesa para um canto da sala e alterar a sala para um formato retangular em vez de quadrado.
-
-## 2026-05-19 - Etapa 1: colisoes
-
-PROMPT: Implementar a etapa 1 do plano: criar um modulo separado de colisoes (`include/collisions.h` e `src/collisions.cpp`), mover/centralizar testes simples de AABB e interseccao de mira, integrar no `main.cpp` para limitar o jogador dentro da sala e selecionar pecas pela mira, e atualizar o build para compilar o novo arquivo.
-
-## 2026-05-19 - Analise de estado e plano incremental
-
-PROMPT: Revisar `SPEC.md`, enunciado e implementacao atual para identificar pontos de negocio e tecnicos do puzzle 3D, apontar o que ja existe, o que esta parcial e o que falta, e montar um plano incremental para avancar o projeto em etapas.
+PROMPT: Ao pegar um objeto com `E`, ele deve aparecer inicialmente com o mesmo tamanho que tinha na mesa ou no mundo naquele instante, sem crescer imediatamente. Depois disso, conforme o jogador anda e oscila a camera no eixo Y, aplicar as transformacoes de escala/distancia previstas e implementar gravidade basica nos objetos geometricos ao solta-los, permitindo empilhar pecas e colocar uma em cima da outra com colisao simplificada, mantendo a ideia central de puzzle 3D descrita no `SPEC.md` e evitando fisica realista pesada.

@@ -14,7 +14,7 @@ struct CollisionAABB
 };
 
 CollisionAABB MakeAABBFromCenterHalfExtents(glm::vec3 center, glm::vec3 half_extents);
-CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wall_thickness, float player_radius);
+CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wall_height, float wall_thickness, float player_radius);
 
 bool AABBIntersectsAABB(const CollisionAABB& a, const CollisionAABB& b);
 bool PointInsideAABB(glm::vec3 point, const CollisionAABB& box);
