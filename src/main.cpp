@@ -49,6 +49,8 @@
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
+#include "collisions.h"
+#include "hud_overlay.h"
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -121,6 +123,8 @@ void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, cria
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
 void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
 void DrawGameObject(const struct GameObject& object); // Desenha uma instância lógica da cena do jogo
+CollisionAABB GetGameObjectCollisionBox(const struct GameObject& object); // AABB aproximada de uma peça solta
+glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position); // Resolve colisões do jogador com sala, mesa e peças
 int FindTargetedGameObject(); // Retorna a peça selecionável sob a mira central
 void SelectNextGameObject(); // Seleciona visualmente a próxima peça manipulável
 void ToggleHeldObject(); // Alterna entre pegar e soltar a peça selecionada
@@ -250,12 +254,12 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // de "segurar peça" (held object). Mantemos essa variável e a recalculamos
 // todo frame a partir do view_vector da câmera FPS.
 // ----------------------------------------------------------------------------
-float g_CameraTheta = 0.0f; // Yaw: ângulo no plano XZ (rotação em torno de Y)
+float g_CameraTheta = 1.0f; // Yaw: ângulo no plano XZ (rotação em torno de Y)
 float g_CameraPhi   = 0.0f; // Pitch: elevação acima/abaixo do plano XZ
 
 // Posição da câmera (ponto "c" do sistema de coordenadas da câmera). A altura
 // inicial (Y=1.7) simula a altura aproximada dos olhos de uma pessoa em pé.
-glm::vec4 g_CameraPosition = glm::vec4(0.0f, 1.7f, 0.0f, 1.0f);
+glm::vec4 g_CameraPosition = glm::vec4(5.0f, 1.7f, 4.5f, 1.0f);
 
 // Espelho vec3 do "forward" da câmera, usado pela lógica de peças seguradas
 // (DrawGameObject / loop de render). Recomputado todo frame.
@@ -265,6 +269,21 @@ glm::vec3 g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
 // Multiplicada por g_DeltaTime no loop de render para garantir velocidade
 // independente da taxa de quadros do computador.
 float g_CameraSpeed = 4.0f;
+
+// Dimensoes logicas da sala. O render usa os mesmos valores para desenhar
+// chao e paredes; o modulo de colisoes usa estes numeros para limitar a area
+// caminhavel do jogador.
+const float ROOM_WIDTH  = 24.0f;
+const float ROOM_DEPTH  = 14.0f;
+const float WALL_HEIGHT = 3.0f;
+const float WALL_THICK  = 0.2f;
+const float PLAYER_RADIUS = 0.35f;
+
+// Posicionamento da mesa no canto da sala. A mesa passa a ser um obstaculo de
+// colisao e tambem serve como "bancada" de fontes reutilizaveis das pecas.
+const glm::vec3 TABLE_POSITION = glm::vec3(-7.0f, 0.0f, -3.5f);
+const glm::vec3 TABLE_SCALE    = glm::vec3(0.03f, 0.03f, 0.03f);
+const glm::vec3 TABLE_COLLIDER_HALF_EXTENTS = glm::vec3(1.15f, 1.2f, 0.85f);
 
 // Δt entre o frame atual e o anterior. Calculado no início do loop de render
 // a partir de glfwGetTime(). Usado para tornar todas as animações e movimentos
@@ -438,7 +457,7 @@ int main(int argc, char* argv[])
     GameObject cube;
     cube.meshName = "puzzle_cube";
     cube.objectId = CUBE_PIECE;
-    cube.position = glm::vec3(-0.75f, 1.61f, 0.10f);
+    cube.position = TABLE_POSITION + glm::vec3(-0.75f, 1.61f, 0.10f);
     cube.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     cube.scale = glm::vec3(0.35f, 0.35f, 0.35f);
     cube.baseScale = cube.scale;
@@ -450,7 +469,7 @@ int main(int argc, char* argv[])
     GameObject triangularPiece;
     triangularPiece.meshName = "puzzle_triangular_piece";
     triangularPiece.objectId = TRIANGLE_PIECE;
-    triangularPiece.position = glm::vec3(0.05f, 1.61f, 0.08f);
+    triangularPiece.position = TABLE_POSITION + glm::vec3(0.05f, 1.61f, 0.08f);
     triangularPiece.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     triangularPiece.scale = glm::vec3(0.42f, 0.42f, 0.42f);
     triangularPiece.baseScale = triangularPiece.scale;
@@ -462,7 +481,7 @@ int main(int argc, char* argv[])
     GameObject cylinder;
     cylinder.meshName = "puzzle_cylinder";
     cylinder.objectId = CYLINDER_PIECE;
-    cylinder.position = glm::vec3(0.82f, 1.61f, 0.08f);
+    cylinder.position = TABLE_POSITION + glm::vec3(0.82f, 1.61f, 0.08f);
     cylinder.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     cylinder.scale = glm::vec3(0.45f, 0.45f, 0.45f);
     cylinder.baseScale = cylinder.scale;
@@ -479,6 +498,7 @@ int main(int argc, char* argv[])
 
     // Inicializamos o código para renderização de texto.
     TextRendering_Init();
+    HudOverlay_Init();
 
     // Capturamos o cursor do mouse dentro da janela e o tornamos invisível.
     // Esse modo (GLFW_CURSOR_DISABLED) é o padrão em jogos FPS: o mouse pode
@@ -559,24 +579,48 @@ int main(int argc, char* argv[])
             camera_view_vector.x, camera_view_vector.y, camera_view_vector.z));
 
         // (2.b) Lógica de "segurar peça" (ramo do colega): se houver uma peça
-        //       atualmente segurada, sua posição é fixada a 1.6 m à frente da
+        //       atualmente segurada, sua posição é fixada bem à frente da
         //       câmera, e sua escala varia com o pitch da câmera — quanto
         //       mais o jogador olha para cima, maior a peça (efeito inspirado
         //       em Superliminal). vertical_factor mapeia a componente Y do
-        //       forward da câmera para [0, 1]; scale_factor varia entre 0.20x
-        //       e 4.00x da base para deixar o efeito bem evidente.
+        //       forward da câmera para [0, 1]. Usamos uma curva quadratica
+        //       para deixar a alteração de volume mais agressiva quando o
+        //       jogador olha para cima, e mantemos o objeto mais longe para a
+        //       diferença de proporção ficar visível no espaço da sala.
         if (g_HeldObjectIndex >= 0)
         {
             GameObject& heldObject = g_GameObjects[g_HeldObjectIndex];
             float vertical_factor = (g_CameraForward.y + 1.0f) / 2.0f;
             vertical_factor = std::max(0.0f, std::min(1.0f, vertical_factor));
-            float scale_factor = 0.20f + vertical_factor * 3.80f;
+            float distance_from_table = glm::length(glm::vec3(
+                g_CameraPosition.x - TABLE_POSITION.x,
+                0.0f,
+                g_CameraPosition.z - TABLE_POSITION.z));
+            float distance_factor = std::max(0.0f, std::min(1.0f, (distance_from_table - 4.0f) / 10.0f));
+            float scale_factor = 0.10f
+                               + vertical_factor * vertical_factor * 11.90f
+                               + vertical_factor * distance_factor * 2.00f;
+            float hold_distance = 5.75f
+                                + vertical_factor * vertical_factor * 4.25f
+                                + vertical_factor * distance_factor * 1.50f;
 
             // Convertemos g_CameraPosition (vec4) para vec3 para somar com o
             // forward — a mecânica de hold trabalha em coordenadas afins puras.
             glm::vec3 cam_pos3(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
-            heldObject.position = cam_pos3 + g_CameraForward * 3.0f;
+            heldObject.position = cam_pos3 + g_CameraForward * hold_distance;
             heldObject.scale    = heldObject.baseScale * scale_factor;
+
+            CollisionAABB held_box = GetGameObjectCollisionBox(heldObject);
+            CollisionAABB walkable_room = MakeRoomWalkableAABB(ROOM_WIDTH, ROOM_DEPTH, WALL_THICK, PLAYER_RADIUS);
+            if (held_box.min.y < 0.02f)
+                heldObject.position.y += 0.02f - held_box.min.y;
+
+            heldObject.position.x = std::max(walkable_room.min.x + (heldObject.position.x - held_box.min.x),
+                                             std::min(walkable_room.max.x - (held_box.max.x - heldObject.position.x),
+                                                      heldObject.position.x));
+            heldObject.position.z = std::max(walkable_room.min.z + (heldObject.position.z - held_box.min.z),
+                                             std::min(walkable_room.max.z - (held_box.max.z - heldObject.position.z),
+                                                      heldObject.position.z));
         }
         else
         {
@@ -610,7 +654,17 @@ int main(int argc, char* argv[])
         if (g_KeyS_Pressed) g_CameraPosition -= horizontal_forward * step;
         if (g_KeyD_Pressed) g_CameraPosition += right_vector       * step;
         if (g_KeyA_Pressed) g_CameraPosition -= right_vector       * step;
-        // Mantemos a coordenada w = 1 (ponto) e a altura do "olho" fixa.
+
+        // Colisao jogador-sala: antes de calcular a matriz de view, tratamos
+        // a posicao da camera como ponto do jogador e limitamos sua posicao a
+        // uma AABB interna da sala. Assim, WASD nao permite atravessar paredes.
+        glm::vec3 camera_pos3(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
+        camera_pos3 = ResolvePlayerCollisions(camera_pos3);
+        g_CameraPosition.x = camera_pos3.x;
+        g_CameraPosition.y = camera_pos3.y;
+        g_CameraPosition.z = camera_pos3.z;
+
+        // Mantemos a coordenada w = 1 (ponto) apos a integracao e colisao.
         g_CameraPosition.w = 1.0f;
 
         // (6) Finalmente montamos a matriz View MANUALMENTE através de
@@ -662,8 +716,8 @@ int main(int argc, char* argv[])
         // -------------------------------------------------------------------
         // CENA: sala retangular do museu (chão + 4 paredes).
         //
-        // A sala mede ROOM_SIZE x ROOM_SIZE no plano XZ e tem WALL_HEIGHT de
-        // altura em Y. O cubo unitário carregado de data/cube.obj é
+        // A sala mede ROOM_WIDTH x ROOM_DEPTH no plano XZ e tem WALL_HEIGHT
+        // de altura em Y. O cubo unitário carregado de data/cube.obj é
         // INSTANCIADO 5 vezes — uma para o chão (achatado em Y) e uma para
         // cada parede (achatada em X ou Z).
         //
@@ -676,52 +730,51 @@ int main(int argc, char* argv[])
         // A mesa e as peças do puzzle continuam sendo desenhadas mais abaixo,
         // dentro desta sala maior.
         // -------------------------------------------------------------------
-        const float ROOM_SIZE   = 20.0f; // lado da sala (X e Z), em metros
-        const float WALL_HEIGHT = 3.0f;  // altura das paredes
-        const float WALL_THICK  = 0.2f;  // espessura das paredes
-        const float HALF        = ROOM_SIZE / 2.0f;
+        const float HALF_WIDTH  = ROOM_WIDTH / 2.0f;
+        const float HALF_DEPTH  = ROOM_DEPTH / 2.0f;
 
         // --- Chão ---
         // Cubo achatado em Y (0.1 m de espessura) e estendido em X/Z para
         // cobrir toda a sala. Posicionamos com o TOPO em y=0 (centro em
         // y = -0.05) para que o "olho" da câmera (em y = 1.7) fique acima.
         model = Matrix_Translate(0.0f, -0.05f, 0.0f)
-              * Matrix_Scale(ROOM_SIZE, 0.1f, ROOM_SIZE);
+              * Matrix_Scale(ROOM_WIDTH, 0.1f, ROOM_DEPTH);
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, FLOOR);
         DrawVirtualObject("the_cube");
 
         // --- 4 paredes ---
         // Paredes ao longo do eixo X (face voltada para ±Z): cubos com
-        // comprimento ROOM_SIZE em X, altura WALL_HEIGHT em Y, espessura
-        // WALL_THICK em Z. Posicionados em z = ±(HALF - WALL_THICK/2) para que
-        // a face interna fique exatamente na linha z = ±HALF.
-        float wall_center = HALF - WALL_THICK / 2.0f;
+        // comprimento ROOM_WIDTH em X, altura WALL_HEIGHT em Y, espessura
+        // WALL_THICK em Z. Posicionados em z = ±(HALF_DEPTH - WALL_THICK/2)
+        // para que a face interna fique exatamente na borda caminhavel.
+        float wall_center_z = HALF_DEPTH - WALL_THICK / 2.0f;
+        float wall_center_x = HALF_WIDTH  - WALL_THICK / 2.0f;
 
         // Parede sul (em z = -HALF)
-        model = Matrix_Translate(0.0f, WALL_HEIGHT / 2.0f, -wall_center)
-              * Matrix_Scale(ROOM_SIZE, WALL_HEIGHT, WALL_THICK);
+        model = Matrix_Translate(0.0f, WALL_HEIGHT / 2.0f, -wall_center_z)
+              * Matrix_Scale(ROOM_WIDTH, WALL_HEIGHT, WALL_THICK);
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALL);
         DrawVirtualObject("the_cube");
 
         // Parede norte (em z = +HALF)
-        model = Matrix_Translate(0.0f, WALL_HEIGHT / 2.0f, +wall_center)
-              * Matrix_Scale(ROOM_SIZE, WALL_HEIGHT, WALL_THICK);
+        model = Matrix_Translate(0.0f, WALL_HEIGHT / 2.0f, +wall_center_z)
+              * Matrix_Scale(ROOM_WIDTH, WALL_HEIGHT, WALL_THICK);
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALL);
         DrawVirtualObject("the_cube");
 
         // Parede oeste (em x = -HALF)
-        model = Matrix_Translate(-wall_center, WALL_HEIGHT / 2.0f, 0.0f)
-              * Matrix_Scale(WALL_THICK, WALL_HEIGHT, ROOM_SIZE);
+        model = Matrix_Translate(-wall_center_x, WALL_HEIGHT / 2.0f, 0.0f)
+              * Matrix_Scale(WALL_THICK, WALL_HEIGHT, ROOM_DEPTH);
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALL);
         DrawVirtualObject("the_cube");
 
         // Parede leste (em x = +HALF)
-        model = Matrix_Translate(+wall_center, WALL_HEIGHT / 2.0f, 0.0f)
-              * Matrix_Scale(WALL_THICK, WALL_HEIGHT, ROOM_SIZE);
+        model = Matrix_Translate(+wall_center_x, WALL_HEIGHT / 2.0f, 0.0f)
+              * Matrix_Scale(WALL_THICK, WALL_HEIGHT, ROOM_DEPTH);
         glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, WALL);
         DrawVirtualObject("the_cube");
@@ -733,20 +786,15 @@ int main(int argc, char* argv[])
         // Mesa principal do puzzle. O OBJ exportado veio em escala grande
         // (~50 m), por isso o fator 0.03 — a mesa fica com cerca de 1.5 m de
         // largura, dimensão compatível com as peças posicionadas em y≈1.6.
-        model = Matrix_Translate(0.0f,0.0f,0.0f)
-              * Matrix_Scale(0.03f,0.03f,0.03f);
+        model = Matrix_Translate(TABLE_POSITION.x, TABLE_POSITION.y, TABLE_POSITION.z)
+              * Matrix_Scale(TABLE_SCALE.x, TABLE_SCALE.y, TABLE_SCALE.z);
         glUniformMatrix4fv(g_model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(g_object_id_uniform, TABLE);
         DrawVirtualObject("small_wooden_table_01");
 
         for (size_t i = 0; i < g_GameObjects.size(); ++i)
         {
-            int originalObjectId = g_GameObjects[i].objectId;
-            if ((int)i == g_SelectedObjectIndex)
-                g_GameObjects[i].objectId = SELECTED_PIECE;
-
             DrawGameObject(g_GameObjects[i]);
-            g_GameObjects[i].objectId = originalObjectId;
         }
 
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
@@ -759,6 +807,16 @@ int main(int argc, char* argv[])
         // Imprimimos na tela informação sobre o número de quadros renderizados
         // por segundo (frames per second).
         TextRendering_ShowFramesPerSecond(window);
+
+        // Mira fixa e feedback de interacao. O HUD usa o estado calculado pela
+        // selecao por raycast: circulo neutro, mao aberta com "grab" sobre uma
+        // peca manipulavel, e mao fechada enquanto uma copia esta segurada.
+        HudOverlayState hud_state = HUD_NEUTRAL;
+        if (g_HeldObjectIndex >= 0)
+            hud_state = HUD_HOLDING;
+        else if (g_SelectedObjectIndex >= 0)
+            hud_state = HUD_CAN_GRAB;
+        HudOverlay_Draw(window, hud_state);
 
         // O framebuffer onde OpenGL executa as operações de renderização não
         // é o mesmo que está sendo mostrado para o usuário, caso contrário
@@ -880,6 +938,52 @@ void DrawGameObject(const GameObject& object)
     DrawVirtualObject(object.meshName.c_str());
 }
 
+CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
+{
+    // As pecas do puzzle possuem formatos diferentes, mas para colisao do
+    // jogador usamos uma AABB aproximada e conservadora. O importante aqui e
+    // dar peso fisico aos itens soltos no mundo sem depender da malha exata de
+    // cada OBJ, mantendo a fisica simplificada prevista no SPEC.md.
+    glm::vec3 half_extents;
+    half_extents.x = std::max(0.25f, object.scale.x * 0.75f);
+    half_extents.y = std::max(0.25f, object.scale.y * 0.75f);
+    half_extents.z = std::max(0.25f, object.scale.z * 0.75f);
+
+    return MakeAABBFromCenterHalfExtents(object.position, half_extents);
+}
+
+glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position)
+{
+    // Primeiro prendemos o jogador dentro da area interna da sala retangular.
+    // Depois resolvemos obstaculos internos e prendemos novamente, pois uma
+    // colisao perto da parede poderia empurrar o jogador para fora da sala.
+    CollisionAABB walkable_room = MakeRoomWalkableAABB(ROOM_WIDTH, ROOM_DEPTH, WALL_THICK, PLAYER_RADIUS);
+    player_position = ClampPointToAABB(player_position, walkable_room);
+
+    CollisionAABB table_box = MakeAABBFromCenterHalfExtents(
+        TABLE_POSITION + glm::vec3(0.0f, TABLE_COLLIDER_HALF_EXTENTS.y, 0.0f),
+        TABLE_COLLIDER_HALF_EXTENTS
+    );
+    player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, table_box);
+
+    for (size_t i = 0; i < g_GameObjects.size(); ++i)
+    {
+        const GameObject& object = g_GameObjects[i];
+
+        // As pecas originais em cima da mesa sao fontes reutilizaveis e ficam
+        // cobertas pela colisao maior da mesa. A peca segurada tambem nao deve
+        // bloquear o jogador, pois ela acompanha a camera.
+        if (object.source || (int)i == g_HeldObjectIndex)
+            continue;
+
+        CollisionAABB object_box = GetGameObjectCollisionBox(object);
+        player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, object_box);
+    }
+
+    player_position = ClampPointToAABB(player_position, walkable_room);
+    return player_position;
+}
+
 int FindTargetedGameObject()
 {
     glm::vec3 camera_position(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
@@ -892,16 +996,14 @@ int FindTargetedGameObject()
         if (!object.selectable)
             continue;
 
-        glm::vec3 to_object = object.position - camera_position;
-        float depth = glm::dot(to_object, g_CameraForward);
-        if (depth <= 0.0f || depth > 8.0f)
-            continue;
-
-        glm::vec3 closest_point = camera_position + g_CameraForward * depth;
-        float distance_to_ray = glm::length(object.position - closest_point);
         float object_radius = std::max(object.scale.x, std::max(object.scale.y, object.scale.z)) * 0.8f + 0.20f;
+        float depth = 0.0f;
 
-        if (distance_to_ray <= object_radius && depth < best_depth)
+        // Interseccao da mira central com a peca: aproximamos cada objeto por
+        // uma esfera. Isso e suficiente para o puzzle atual e deixa a selecao
+        // com proposito claro dentro da logica da aplicacao.
+        if (RayIntersectsSphere(camera_position, g_CameraForward, object.position, object_radius, 8.0f, &depth)
+            && depth < best_depth)
         {
             best_depth = depth;
             best_index = (int)i;
@@ -948,8 +1050,8 @@ void ToggleHeldObject()
     {
         printf("Objeto solto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
         fflush(stdout);
-        g_GameObjects[g_HeldObjectIndex].selectable = false;
-        g_GameObjects[g_HeldObjectIndex].movable = false;
+        g_GameObjects[g_HeldObjectIndex].selectable = true;
+        g_GameObjects[g_HeldObjectIndex].movable = true;
         g_GameObjects[g_HeldObjectIndex].source = false;
         g_HeldObjectIndex = -1;
         g_SelectedObjectIndex = -1;
@@ -961,12 +1063,24 @@ void ToggleHeldObject()
 
     if (g_SelectedObjectIndex >= 0 && g_GameObjects[g_SelectedObjectIndex].movable)
     {
-        GameObject heldCopy = g_GameObjects[g_SelectedObjectIndex];
-        heldCopy.selectable = false;
-        heldCopy.source = false;
-        g_GameObjects.push_back(heldCopy);
+        if (g_GameObjects[g_SelectedObjectIndex].source)
+        {
+            // Pecas originais sobre a mesa sao fontes reutilizaveis: pegar uma
+            // delas cria uma copia segurada e deixa a fonte no lugar.
+            GameObject heldCopy = g_GameObjects[g_SelectedObjectIndex];
+            heldCopy.selectable = false;
+            heldCopy.source = false;
+            g_GameObjects.push_back(heldCopy);
+            g_HeldObjectIndex = (int)g_GameObjects.size() - 1;
+        }
+        else
+        {
+            // Pecas ja soltas no mundo podem ser pegas novamente. Nesse caso,
+            // seguramos o proprio objeto, sem duplicar a malha logica.
+            g_HeldObjectIndex = g_SelectedObjectIndex;
+            g_GameObjects[g_HeldObjectIndex].selectable = false;
+        }
 
-        g_HeldObjectIndex = (int)g_GameObjects.size() - 1;
         g_SelectedObjectIndex = g_HeldObjectIndex;
         printf("Segurando objeto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
         fflush(stdout);
