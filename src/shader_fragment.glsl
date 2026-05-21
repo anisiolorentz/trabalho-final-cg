@@ -35,6 +35,9 @@ uniform mat4 projection;
 #define TRIANGLE_PIECE 7
 #define CYLINDER_PIECE 8
 #define SELECTED_PIECE 9
+#define CEILING        10
+#define LIGHT_PANEL    11
+#define SHADOW         12
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -51,6 +54,7 @@ uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
+uniform float shadow_alpha;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -58,6 +62,15 @@ out vec4 color;
 // Constantes
 #define M_PI   3.14159265358979323846
 #define M_PI_2 1.57079632679489661923
+
+float EdgeDarkening(float width)
+{
+    vec3 extent = max(bbox_max.xyz - bbox_min.xyz, vec3(0.001));
+    vec3 q = clamp((position_model.xyz - bbox_min.xyz) / extent, 0.0, 1.0);
+    float edge_distance = min(min(q.x, 1.0 - q.x), min(min(q.y, 1.0 - q.y), min(q.z, 1.0 - q.z)));
+    float edge = 1.0 - smoothstep(0.0, width, edge_distance);
+    return mix(1.0, 0.48, edge);
+}
 
 void main()
 {
@@ -188,6 +201,23 @@ void main()
         V = fract(v_raw);
         Kd0 = texture(TextureImage0, vec2(U,V)).rgb; // textura red_brick
     }
+    else if ( object_id == CEILING )
+    {
+        U = fract(position_world.x / 2.5);
+        V = fract(position_world.z / 2.5);
+        vec3 subtle = texture(TextureImage2, vec2(U,V)).rgb;
+        Kd0 = mix(vec3(0.62, 0.63, 0.58), subtle, 0.12);
+    }
+    else if ( object_id == LIGHT_PANEL )
+    {
+        color = vec4(1.0, 0.98, 0.88, 1.0);
+        return;
+    }
+    else if ( object_id == SHADOW )
+    {
+        color = vec4(0.0, 0.0, 0.0, shadow_alpha);
+        return;
+    }
     else if ( object_id == TABLE )
     {
         // Mesa do puzzle: UVs vêm direto do OBJ exportado. A textura de
@@ -204,7 +234,7 @@ void main()
         V = position_model.z * 1.5 + position_model.y;
 
         vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = mix(base, vec3(0.15, 0.85, 0.25), 0.70);
+        Kd0 = vec3(0.10, 0.62, 0.20) * EdgeDarkening(0.09);
     }
     else if ( object_id == TRIANGLE_PIECE )
     {
@@ -213,7 +243,7 @@ void main()
         V = position_model.z * 1.5 + position_model.y;
 
         vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = mix(base, vec3(0.95, 0.15, 0.10), 0.70);
+        Kd0 = vec3(0.78, 0.09, 0.06) * EdgeDarkening(0.10);
     }
     else if ( object_id == CYLINDER_PIECE )
     {
@@ -222,7 +252,7 @@ void main()
         V = position_model.z * 1.5 + position_model.y;
 
         vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = mix(base, vec3(1.00, 0.82, 0.05), 0.70);
+        Kd0 = vec3(0.90, 0.66, 0.04) * EdgeDarkening(0.12);
     }
     else if ( object_id == SELECTED_PIECE )
     {
@@ -231,7 +261,7 @@ void main()
         V = position_model.z * 1.5 + position_model.y;
 
         vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = mix(base, vec3(0.20, 0.85, 1.00), 0.75);
+        Kd0 = vec3(0.80, 0.80, 0.80) * EdgeDarkening(0.10);
     }
     else
     {
@@ -240,9 +270,31 @@ void main()
     }
 
     // Equação de Iluminação
-    float lambert = max(0,dot(n,l));
+    vec3 p3 = p.xyz;
+    vec3 n3 = normalize(n.xyz);
+    vec3 v3 = normalize(v.xyz);
 
-    color.rgb = Kd0 * (lambert + 0.01);
+    vec3 light0 = vec3(-6.5, 13.4, -3.8);
+    vec3 light1 = vec3( 0.0, 13.4,  0.0);
+    vec3 light2 = vec3( 6.5, 13.4,  3.8);
+
+    vec3 l0 = normalize(light0 - p3);
+    vec3 l1 = normalize(light1 - p3);
+    vec3 l2 = normalize(light2 - p3);
+
+    float diffuse = 0.34 * max(0.0, dot(n3, l0))
+                  + 0.42 * max(0.0, dot(n3, l1))
+                  + 0.34 * max(0.0, dot(n3, l2));
+
+    vec3 h0 = normalize(l0 + v3);
+    vec3 h1 = normalize(l1 + v3);
+    vec3 h2 = normalize(l2 + v3);
+    float specular = pow(max(0.0, dot(n3, h0)), 24.0) * 0.10
+                   + pow(max(0.0, dot(n3, h1)), 24.0) * 0.14
+                   + pow(max(0.0, dot(n3, h2)), 24.0) * 0.10;
+
+    float ambient = 0.38;
+    color.rgb = Kd0 * (ambient + diffuse) + vec3(specular);
 
     // NOTE: Se você quiser fazer o rendering de objetos transparentes, é
     // necessário:

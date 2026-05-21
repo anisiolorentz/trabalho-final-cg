@@ -123,10 +123,14 @@ void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, cria
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
 void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
 void DrawGameObject(const struct GameObject& object); // Desenha uma instância lógica da cena do jogo
+void DrawCeilingLightsAndShadows(); // Desenha teto, luminarias e sombras de contato
+void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale); // Sombra plana simplificada
+float FindShadowReceiverHeight(const GameObject& object, const CollisionAABB& object_box); // Chao/mesa/peca sob a sombra
 CollisionAABB GetGameObjectCollisionBox(const struct GameObject& object); // AABB aproximada de uma peça solta
 glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position); // Resolve colisões do jogador com sala, mesa e peças
 void UpdateDroppedObjectPhysics(); // Aplica gravidade simplificada nas peças soltas
 void UpdatePlayerVerticalPhysics(); // Aplica pulo/gravidade e suporte sobre pecas
+bool HorizontalAABBOverlap(const CollisionAABB& a, const CollisionAABB& b); // Sobreposicao XZ entre AABBs
 float FindPlayerSupportHeight(glm::vec3 player_position); // Altura do suporte sob o jogador
 float GetWalkableTopHeightForObject(const GameObject& object, const CollisionAABB& object_box, glm::vec3 player_position); // Topo caminhavel, incluindo rampa
 bool HorizontalCircleOverlapsAABB(glm::vec3 center, float radius, const CollisionAABB& box); // Sobreposicao XZ jogador/AABB
@@ -198,7 +202,10 @@ enum ObjectId
     CUBE_PIECE     = 6,
     TRIANGLE_PIECE = 7,
     CYLINDER_PIECE = 8,
-    SELECTED_PIECE = 9
+    SELECTED_PIECE = 9,
+    CEILING        = 10,
+    LIGHT_PANEL    = 11,
+    SHADOW         = 12
 };
 
 struct GameObject
@@ -281,7 +288,7 @@ glm::vec3 g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
 // Velocidade de deslocamento WASD da câmera, em unidades de mundo por segundo.
 // Multiplicada por g_DeltaTime no loop de render para garantir velocidade
 // independente da taxa de quadros do computador.
-float g_CameraSpeed = 4.0f;
+float g_CameraSpeed = 5.8f;
 float g_PlayerVerticalVelocity = 0.0f;
 bool g_PlayerGrounded = true;
 
@@ -290,7 +297,7 @@ bool g_PlayerGrounded = true;
 // caminhavel do jogador.
 const float ROOM_WIDTH  = 24.0f;
 const float ROOM_DEPTH  = 14.0f;
-const float WALL_HEIGHT = 4.2f;
+const float WALL_HEIGHT = 13.5f;
 const float WALL_THICK  = 0.2f;
 const float PLAYER_RADIUS = 0.35f;
 const float PLAYER_EYE_HEIGHT = 2.4f;
@@ -346,6 +353,7 @@ GLint g_projection_uniform;
 GLint g_object_id_uniform;
 GLint g_bbox_min_uniform;
 GLint g_bbox_max_uniform;
+GLint g_shadow_alpha_uniform;
 
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
@@ -829,6 +837,8 @@ int main(int argc, char* argv[])
             DrawGameObject(g_GameObjects[i]);
         }
 
+        DrawCeilingLightsAndShadows();
+
         // Imprimimos na tela os ângulos de Euler que controlam a rotação do
         // terceiro cubo.
         TextRendering_ShowEulerAngles(window);
@@ -955,6 +965,117 @@ void DrawVirtualObject(const char* object_name)
     // "Desligamos" o VAO, evitando assim que operações posteriores venham a
     // alterar o mesmo. Isso evita bugs.
     glBindVertexArray(0);
+}
+
+void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale)
+{
+    glm::mat4 model = Matrix_Translate(center.x, receiver_y + 0.018f, center.z)
+                    * Matrix_Scale(size.x, 0.01f, size.y);
+
+    glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(g_object_id_uniform, SHADOW);
+    glUniform1f(g_shadow_alpha_uniform, alpha_scale);
+    DrawVirtualObject("the_cube");
+    glUniform1f(g_shadow_alpha_uniform, 0.28f);
+}
+
+float FindShadowReceiverHeight(const GameObject& object, const CollisionAABB& object_box)
+{
+    float receiver_height = 0.0f;
+
+    // Para a sombra visual, usamos o tampo aproximado da mesa em vez da AABB de
+    // colisao da mesa, que e propositalmente conservadora para bloquear o
+    // jogador. Isso evita sombras flutuando acima das pecas da mesa.
+    const float TABLE_VISUAL_TOP = TABLE_POSITION.y + 1.55f;
+    CollisionAABB table_shadow_box = MakeAABBFromCenterHalfExtents(
+        glm::vec3(TABLE_POSITION.x, TABLE_VISUAL_TOP, TABLE_POSITION.z),
+        glm::vec3(TABLE_COLLIDER_HALF_EXTENTS.x, 0.08f, TABLE_COLLIDER_HALF_EXTENTS.z)
+    );
+    if (HorizontalAABBOverlap(object_box, table_shadow_box) && object_box.min.y >= TABLE_VISUAL_TOP - 0.20f)
+        receiver_height = std::max(receiver_height, TABLE_VISUAL_TOP);
+
+    for (size_t i = 0; i < g_GameObjects.size(); ++i)
+    {
+        const GameObject& other = g_GameObjects[i];
+        if (&other == &object || other.source || (int)i == g_HeldObjectIndex)
+            continue;
+
+        CollisionAABB other_box = GetGameObjectCollisionBox(other);
+        if (HorizontalAABBOverlap(object_box, other_box) && object_box.min.y >= other_box.max.y - 0.05f)
+            receiver_height = std::max(receiver_height, other_box.max.y);
+    }
+
+    return receiver_height;
+}
+
+void DrawCeilingLightsAndShadows()
+{
+    // Teto cinza claro, levemente escuro como na referencia: ajuda a vender a
+    // ideia de sala interna alta e recebe os painéis luminosos.
+    glm::mat4 model = Matrix_Translate(0.0f, WALL_HEIGHT + 0.03f, 0.0f)
+                    * Matrix_Scale(ROOM_WIDTH, 0.06f, ROOM_DEPTH);
+    glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(g_object_id_uniform, CEILING);
+    DrawVirtualObject("the_cube");
+
+    const float light_y = WALL_HEIGHT - 0.02f;
+    const glm::vec2 light_positions[] = {
+        glm::vec2(-9.0f, -5.0f), glm::vec2(-4.8f, -5.0f), glm::vec2( 0.0f, -5.0f), glm::vec2( 4.8f, -5.0f), glm::vec2( 9.0f, -5.0f),
+        glm::vec2(-7.0f, -2.0f), glm::vec2(-2.4f, -2.0f), glm::vec2( 2.4f, -2.0f), glm::vec2( 7.0f, -2.0f),
+        glm::vec2(-9.0f,  1.2f), glm::vec2(-4.8f,  1.2f), glm::vec2( 0.0f,  1.2f), glm::vec2( 4.8f,  1.2f), glm::vec2( 9.0f,  1.2f),
+        glm::vec2(-7.0f,  4.5f), glm::vec2(-2.4f,  4.5f), glm::vec2( 2.4f,  4.5f), glm::vec2( 7.0f,  4.5f)
+    };
+
+    for (size_t i = 0; i < sizeof(light_positions)/sizeof(light_positions[0]); ++i)
+    {
+        model = Matrix_Translate(light_positions[i].x, light_y, light_positions[i].y)
+              * Matrix_Scale(1.15f, 0.035f, 0.85f);
+        glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(g_object_id_uniform, LIGHT_PANEL);
+        DrawVirtualObject("the_cube");
+    }
+
+    // Sombras de contato projetadas verticalmente, coerentes com luminarias no
+    // teto. Sao planas e simplificadas, mas dao leitura visual de oclusao sem
+    // implementar shadow mapping completo.
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+
+    DrawShadowQuad(glm::vec3(TABLE_POSITION.x, 0.0f, TABLE_POSITION.z),
+                   glm::vec2(TABLE_COLLIDER_HALF_EXTENTS.x * 2.15f, TABLE_COLLIDER_HALF_EXTENTS.z * 2.10f),
+                   0.0f,
+                   0.09f);
+
+    for (size_t i = 0; i < g_GameObjects.size(); ++i)
+    {
+        const GameObject& object = g_GameObjects[i];
+        if (object.source)
+            continue;
+
+        CollisionAABB box = GetGameObjectCollisionBox(object);
+        float receiver_y = FindShadowReceiverHeight(object, box);
+        float height_above_receiver = std::max(0.0f, box.min.y - receiver_y);
+        if (height_above_receiver < 0.08f)
+            continue;
+
+        float softness = std::min(1.40f, 0.15f + height_above_receiver * 0.18f);
+        float alpha = std::max(0.04f, 0.24f - height_above_receiver * 0.035f);
+        glm::vec2 size((box.max.x - box.min.x) + softness, (box.max.z - box.min.z) + softness);
+        glm::vec3 center((box.min.x + box.max.x) * 0.5f, 0.0f, (box.min.z + box.max.z) * 0.5f);
+
+        // Pequeno deslocamento da sombra em relacao ao centro da sala, como se
+        // as luminarias distribuidas no teto projetassem sombras levemente
+        // inclinadas quando a peca esta alta.
+        glm::vec2 from_center(center.x * 0.03f, center.z * 0.03f);
+        center.x += from_center.x * height_above_receiver;
+        center.z += from_center.y * height_above_receiver;
+
+        DrawShadowQuad(center, size, receiver_y, alpha);
+    }
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
 }
 
 void DrawGameObject(const GameObject& object)
@@ -1420,6 +1541,7 @@ void LoadShadersFromFiles()
     g_object_id_uniform  = glGetUniformLocation(g_GpuProgramID, "object_id"); // Variável "object_id" em shader_fragment.glsl
     g_bbox_min_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_min");
     g_bbox_max_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_max");
+    g_shadow_alpha_uniform = glGetUniformLocation(g_GpuProgramID, "shadow_alpha");
 
     // Variáveis em "shader_fragment.glsl" para acesso das imagens de textura
     glUseProgram(g_GpuProgramID);
@@ -1427,6 +1549,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3); // slot novo no merge — mesa de madeira
+    glUniform1f(g_shadow_alpha_uniform, 0.28f);
     glUseProgram(0);
 }
 
