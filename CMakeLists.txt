@@ -7,8 +7,12 @@
 # ser compilados.
 set(SOURCES
   src/main.cpp
+  src/bezier_guide.cpp
   src/collisions.cpp
+  src/debug_overlay.cpp
   src/hud_overlay.cpp
+  src/input_controller.cpp
+  src/render_scene.cpp
   src/correcao.cpp
   src/textrendering.cpp
   src/tiny_obj_loader.cpp

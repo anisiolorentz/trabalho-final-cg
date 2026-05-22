@@ -38,6 +38,9 @@ uniform mat4 projection;
 #define CEILING        10
 #define LIGHT_PANEL    11
 #define SHADOW         12
+#define EXIT_MARKER    14
+#define BEZIER_TRAIL   15
+#define DIRECTION_ARROW 16
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -55,6 +58,7 @@ uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform float shadow_alpha;
+uniform vec3 guide_color;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
@@ -216,6 +220,16 @@ void main()
     else if ( object_id == SHADOW )
     {
         color = vec4(0.0, 0.0, 0.0, shadow_alpha);
+        return;
+    }
+    else if ( object_id == EXIT_MARKER )
+    {
+        color = vec4(0.42, 0.95, 0.82, 1.0);
+        return;
+    }
+    else if ( object_id == BEZIER_TRAIL || object_id == DIRECTION_ARROW )
+    {
+        color = vec4(guide_color, 1.0);
         return;
     }
     else if ( object_id == TABLE )
