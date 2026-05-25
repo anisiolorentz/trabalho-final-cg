@@ -979,5 +979,3 @@ void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 
 #include "game_logic_impl.inl"
 
-
-

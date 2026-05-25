@@ -30,7 +30,7 @@ CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
         min.x += -0.50f * object.scale.x;
         max.x +=  0.50f * object.scale.x;
         min.y +=  0.00f * object.scale.y;
-        max.y +=  0.30f * object.scale.y;
+        max.y +=  1.50f * object.scale.y;
         min.z += -0.50f * object.scale.z;
         max.z +=  0.50f * object.scale.z;
     }
@@ -405,3 +405,4 @@ void ToggleHeldObject()
         fflush(stdout);
     }
 }
+
