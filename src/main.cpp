@@ -176,7 +176,7 @@ float g_CameraPhi   = 0.0f;
 
 
 
-const glm::vec4 INITIAL_CAMERA_POSITION = glm::vec4(5.0f, 2.4f, 4.5f, 1.0f);
+const glm::vec4 INITIAL_CAMERA_POSITION = glm::vec4(5.0f, 2.45f, 4.5f, 1.0f);
 const float INITIAL_CAMERA_THETA = 1.0f;
 const float INITIAL_CAMERA_PHI = 0.0f;
 glm::vec4 g_CameraPosition = INITIAL_CAMERA_POSITION;
@@ -197,16 +197,16 @@ bool g_PlayerGrounded = true;
 
 const float ROOM_WIDTH  = 30.0f;
 const float ROOM_DEPTH  = 18.0f;
-const float WALL_HEIGHT = 13.5f;
+const float WALL_HEIGHT = 16.0f;
 const float WALL_THICK  = 0.2f;
-const float PLAYER_RADIUS = 0.35f;
-const float PLAYER_EYE_HEIGHT = 2.4f;
+const float PLAYER_RADIUS = 0.33f;
+const float PLAYER_EYE_HEIGHT = 2.45f;
 const float PLAYER_JUMP_SPEED = 4.8f;
-const float BALCONY_FLOOR_TOP_Y = WALL_HEIGHT - 2.55f;
-const glm::vec3 BALCONY_FLOOR_CENTER = glm::vec3(ROOM_WIDTH / 2.0f - WALL_THICK - 0.575f, BALCONY_FLOOR_TOP_Y - 0.10f, 0.0f);
-const glm::vec3 BALCONY_FLOOR_HALF_EXTENTS = glm::vec3(0.575f, 0.10f, 1.45f);
-const float BALCONY_SIDE_WALL_HEIGHT = 1.20f;
-const glm::vec3 BALCONY_SIDE_WALL_HALF_EXTENTS = glm::vec3(0.575f, BALCONY_SIDE_WALL_HEIGHT / 2.0f, 0.09f);
+const float BALCONY_FLOOR_TOP_Y = 11.65f;
+const glm::vec3 BALCONY_FLOOR_CENTER = glm::vec3(ROOM_WIDTH / 2.0f - WALL_THICK - 0.77f, BALCONY_FLOOR_TOP_Y - 0.10f, 0.0f);
+const glm::vec3 BALCONY_FLOOR_HALF_EXTENTS = glm::vec3(0.77f, 0.10f, 1.93f);
+const float BALCONY_SIDE_WALL_HEIGHT = 1.28f;
+const glm::vec3 BALCONY_SIDE_WALL_HALF_EXTENTS = glm::vec3(0.77f, BALCONY_SIDE_WALL_HEIGHT / 2.0f, 0.09f);
 
 
 
@@ -969,9 +969,9 @@ void DrawExitBalcony()
 void DrawCastleDoor()
 {
     const float door_x = ROOM_WIDTH / 2.0f - WALL_THICK - 0.32f;
-    const float door_y = BALCONY_FLOOR_TOP_Y + 0.065f;
+    const float door_y = BALCONY_FLOOR_TOP_Y + 0.055f;
     const float door_z = 0.0f;
-    const float door_scale = 0.0082f;
+    const float door_scale = 0.0102f;
 
     glm::mat4 model = Matrix_Translate(door_x, door_y, door_z)
                     * Matrix_Rotate_Y(3.141592f / 2.0f)
@@ -1061,6 +1061,9 @@ void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 }
 
 #include "game_logic_impl.inl"
+
+
+
 
 
 

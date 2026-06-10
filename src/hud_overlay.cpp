@@ -14,6 +14,7 @@
 
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 void TextRendering_PrintString(GLFWwindow* window, const std::string &str, float x, float y, float scale);
+void TextRendering_SetColor(float r, float g, float b);
 
 static GLuint g_HudProgramID = 0;
 static GLuint g_HudVertexArrayObjectID = 0;
@@ -254,16 +255,18 @@ void HudOverlay_DrawVictory(GLFWwindow* window, float elapsed_time)
         HudOverlay_DrawStar(window, x, y, 14.0f + (float)(i % 3) * 3.0f, colors[(i + 1) % 4]);
     }
 
+    TextRendering_SetColor(1.0f, 1.0f, 1.0f);
     TextRendering_PrintString(window, "Parabens! Puzzle completo!", -0.43f, 0.05f, 1.25f);
 
-    if (elapsed_time >= 2.0f)
+    if (elapsed_time >= 5.0f)
     {
-        int remaining = 3 - (int)floorf(elapsed_time - 2.0f);
+        int remaining = 5 - (int)floorf(elapsed_time - 5.0f);
         if (remaining < 1)
             remaining = 1;
         char buffer[64];
         snprintf(buffer, sizeof(buffer), "Recomecando em %d...", remaining);
         TextRendering_PrintString(window, buffer, -0.27f, -0.12f, 0.95f);
     }
+    TextRendering_SetColor(0.0f, 0.0f, 0.0f);
 }
 

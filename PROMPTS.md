@@ -1,19 +1,7 @@
-## 5
-
-PROMPT: Consolidar o jogo como puzzle 3D completo: detectar vitoria quando o jogador alcanca e pisa na varanda/plataforma elevada, exibir comemoracao simples no HUD com confetes, estrelas e mensagem de parabens, mostrar contagem regressiva de reinicio apos 2 segundos e resetar estado inicial de camera, pecas, selecao, fisica e animacoes. Manter controles de interacao com `E` para pegar/soltar confirmando e `Q` para cancelar manipulacao, descartando copias da mesa ou restaurando pecas ja colocadas.
-
-## 4
-
-PROMPT: Refinar interacao, escala e fisica das pecas geometricas: permitir pegar novamente objetos soltos, segurar objetos a frente da camera com crescimento controlado pelo eixo Y sem atravessar teto/chao/paredes, aplicar gravidade basica ao soltar, permitir empilhamento, impedir tremores em repouso e bloquear soltura/apoio de objetos sobre a varanda. A rampa deve preservar orientacao dinamica ao ser segurada e acompanhar o yaw da camera para apontar para a parede desejada.
-
-## 3
-
-PROMPT: Implementar e estabilizar locomocao, pulo e colisoes do jogador: colisao com sala, mesa, paredes, objetos e varanda; suporte vertical para subir em cubos/cilindros quando o pulo alcanca; rampa caminhavel pela face inclinada sem teleporte; colisao lateral da rampa deve bloquear como obstaculo quando o jogador encosta pelos lados, mas permitir entrada normal pela base com tolerancia suficiente para o corpo do jogador.
-
 ## 2
 
-PROMPT: Construir a cena final do puzzle em uma sala interna retangular e alta, com mesa distante em um canto, plataforma/varanda elevada, porta texturizada no topo, muretas laterais, teto cinza, luminarias distribuidas, sombras simplificadas e texturas coerentes em chao, paredes, mesa, porta e concreto da varanda. Reorganizar assets em `data/assets`, removendo duplicatas e arquivos nao usados, mantendo objetos em diretorios proprios com OBJ/FBX/textures quando aplicavel.
+PROMPT: Refinar a cena final e a saida elevada do puzzle 3D mantendo coerencia visual e jogavel: sala interna retangular e alta com mesa em um canto, texturas em paredes/chao/teto/porta/concreto, iluminacao por lampadas no teto, sombras simples, porta texturizada no topo, varanda com piso e muretas laterais, proporcoes coerentes entre jogador, mesa, porta, teto e varanda, e guia por curva Bezier cubica com seta/faixa de fumaca apontando da mesa ate a saida. Calcular a folga entre topo real da porta e teto para posicionar a varanda, manter a porta abaixo do teto, e recriar a moldura chamativa como uma goleira grande sem base, com laterais e barra superior conectadas nas quinas, maior que porta e varanda, visivel de baixo e posicionada a frente da parede dentro da sala.
 
 ## 1
 
-PROMPT: Evoluir a base tecnica do projeto conforme requisitos academicos: modularizar `main.cpp`, centralizar AABB/colisoes, criar estrutura de objetos do jogo, implementar camera FPS e modo alternativo, selecao por mira com HUD de circulo/mao/grab, instancias, texturas, iluminacao, sombras, animacoes por delta time, guia visual por curva Bezier cubica com seta/faixa de fumaca e moldura pulsante de saida sempre visivel.
+PROMPT: Consolidar a jogabilidade e os requisitos tecnicos do puzzle: camera em primeira pessoa com movimentacao e pulo, selecao por mira com HUD de circulo/mao/grab, manipulacao de blocos/cilindros/rampa com `E` para pegar/soltar e `Q` para cancelar, colisao AABB com sala, mesa, objetos, rampa e varanda, gravidade basica, empilhamento, subida em objetos e rampa sem teleporte lateral, bloqueio para nao soltar objetos sobre a varanda, estruturas modulares para objetos/cena/colisoes/HUD, instancias, texturas, iluminacao, sombras, animacoes por delta time e condicao de vitoria ao pisar na varanda. Ao vencer, exibir confetes, estrelas e texto branco de parabens, esperar 5 segundos, mostrar "Recomecando em 5...4...3...2...1..." e reiniciar o jogo ao final da contagem.

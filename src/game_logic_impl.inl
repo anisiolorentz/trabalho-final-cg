@@ -668,7 +668,7 @@ void UpdateVictoryState()
     if (g_GameWon)
     {
         g_VictoryTimer += g_DeltaTime;
-        if (g_VictoryTimer >= 5.0f)
+        if (g_VictoryTimer >= 10.0f)
             ResetGameState();
         return;
     }
