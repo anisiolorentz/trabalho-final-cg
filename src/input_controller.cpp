@@ -121,6 +121,8 @@ void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
         *g_InputContext.showInfoText = !*g_InputContext.showInfoText;
     if (key == GLFW_KEY_E && action == GLFW_PRESS && g_InputContext.toggleHeldObject)
         g_InputContext.toggleHeldObject();
+    if (key == GLFW_KEY_Q && action == GLFW_PRESS && g_InputContext.cancelHeldObject)
+        g_InputContext.cancelHeldObject();
     if (key == GLFW_KEY_C && action == GLFW_PRESS && g_InputContext.selectNextGameObject)
         g_InputContext.selectNextGameObject();
     if (key == GLFW_KEY_R && action == GLFW_PRESS && g_InputContext.reloadShaders)
@@ -132,3 +134,5 @@ void Input_ErrorCallback(int error, const char* description)
     (void)error;
     fprintf(stderr, "ERROR: GLFW: %s\n", description);
 }
+
+

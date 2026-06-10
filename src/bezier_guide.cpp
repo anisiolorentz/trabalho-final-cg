@@ -90,13 +90,13 @@ static void DrawGuideSphere(const BezierGuideRenderConfig& config, glm::mat4 mod
 void DrawBezierGuide(const BezierGuideRenderConfig& config, DrawVirtualObjectCallback draw_object)
 {
     const float max_pulse = 1.08f;
-    const float exit_x = config.roomWidth / 2.0f - config.wallThickness - 0.035f;
+    const float exit_x = config.roomWidth / 2.0f - config.wallThickness - 0.62f;
     const float exit_z = 0.0f;
-    const float exit_y = config.wallHeight - (1.18f * max_pulse) - 0.08f;
+    const float exit_y = config.wallHeight - (1.36f * max_pulse) - 0.10f;
 
     glm::vec3 p0 = config.tablePosition + glm::vec3(-0.85f, 2.35f, 0.10f);
-    glm::vec3 p1 = glm::vec3(-5.8f, 5.20f, -2.2f);
-    glm::vec3 p2 = glm::vec3(exit_x - 2.8f, config.wallHeight - 0.80f, 0.8f);
+    glm::vec3 p1 = config.tablePosition + glm::vec3(1.4f, 3.55f, 2.7f);
+    glm::vec3 p2 = glm::vec3(exit_x - 3.3f, config.wallHeight - 0.80f, 0.8f);
     glm::vec3 p3 = glm::vec3(exit_x - 0.95f, config.wallHeight - 0.65f, exit_z);
 
     float arrow_t = config.curveT;
@@ -178,19 +178,34 @@ void DrawBezierGuide(const BezierGuideRenderConfig& config, DrawVirtualObjectCal
         draw_object);
 
     float pulse = 1.0f + 0.08f * sinf(config.animationTime * 3.2f);
-    float door_x = exit_x;
-    float door_y = exit_y;
+    float door_x = exit_x - 0.25f;
     float door_z = exit_z;
+    const float balcony_floor_top_y = config.wallHeight - 2.55f;
+    const float frame_bottom_y = balcony_floor_top_y + 0.12f;
+    const float frame_top_y = config.wallHeight - 0.22f;
+    const float frame_center_y = (frame_bottom_y + frame_top_y) * 0.5f;
+    const float frame_half_height = (frame_top_y - frame_bottom_y) * 0.5f;
+    const float frame_half_width = 1.62f * pulse;
 
     glUniform1i(config.objectIdUniform, config.exitMarkerObjectId);
+    glDisable(GL_DEPTH_TEST);
 
     DrawGuideCube(config,
-        GuideTranslate(door_x, door_y, door_z - 0.78f * pulse) * GuideScale(0.045f, 2.35f * pulse, 0.10f),
+        GuideTranslate(door_x, frame_center_y, door_z - frame_half_width) * GuideScale(0.075f, frame_half_height, 0.13f),
         draw_object);
     DrawGuideCube(config,
-        GuideTranslate(door_x, door_y, door_z + 0.78f * pulse) * GuideScale(0.045f, 2.35f * pulse, 0.10f),
+        GuideTranslate(door_x, frame_center_y, door_z + frame_half_width) * GuideScale(0.075f, frame_half_height, 0.13f),
         draw_object);
     DrawGuideCube(config,
-        GuideTranslate(door_x, door_y + 1.18f * pulse, door_z) * GuideScale(0.045f, 0.10f, 1.70f * pulse),
+        GuideTranslate(door_x, frame_top_y, door_z) * GuideScale(0.075f, 0.11f, frame_half_width + 0.18f),
         draw_object);
+    glEnable(GL_DEPTH_TEST);
 }
+
+
+
+
+
+
+
+

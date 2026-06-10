@@ -65,3 +65,4 @@ void DebugOverlay_ShowFramesPerSecond(GLFWwindow* window, const DebugOverlayConf
 
     TextRendering_PrintString(window, buffer, 1.0f - (numchars + 1)*charwidth, 1.0f - lineheight, 1.0f);
 }
+

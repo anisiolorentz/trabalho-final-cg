@@ -27,6 +27,7 @@ struct InputControllerContext
     bool* showInfoText;
 
     InputActionCallback toggleHeldObject;
+    InputActionCallback cancelHeldObject;
     InputActionCallback selectNextGameObject;
     InputActionCallback reloadShaders;
 };
@@ -40,3 +41,5 @@ void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
 void Input_ErrorCallback(int error, const char* description);
 
 #endif
+
+

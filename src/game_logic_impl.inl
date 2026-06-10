@@ -1,9 +1,12 @@
+bool GetRampLocalXZ(const GameObject& object, glm::vec3 player_position, float* local_x, float* local_z);
+bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_position, float player_feet_y);
+
 CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
 {
-    // As malhas das pecas foram modeladas com a origem na base (y = 0), nao no
-    // centro. Por isso a AABB precisa partir de position.y como "chao" da peca;
-    // se tratarmos position como centro, a correcao de gravidade empurra a peca
-    // para cima e ela parece flutuar.
+    
+    
+    
+    
     glm::vec3 min = object.position;
     glm::vec3 max = object.position;
 
@@ -21,18 +24,18 @@ CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
         min.x += -0.60f * object.scale.x;
         max.x +=  0.60f * object.scale.x;
         min.y +=  0.00f * object.scale.y;
-        max.y +=  0.80f * object.scale.y;
+        max.y +=  1.45f * object.scale.y;
         min.z += -0.40f * object.scale.z;
         max.z +=  0.40f * object.scale.z;
     }
     else if (object.objectId == CYLINDER_PIECE)
     {
-        min.x += -0.50f * object.scale.x;
-        max.x +=  0.50f * object.scale.x;
+        min.x += -0.34f * object.scale.x;
+        max.x +=  0.34f * object.scale.x;
         min.y +=  0.00f * object.scale.y;
         max.y +=  1.50f * object.scale.y;
-        min.z += -0.50f * object.scale.z;
-        max.z +=  0.50f * object.scale.z;
+        min.z += -0.34f * object.scale.z;
+        max.z +=  0.34f * object.scale.z;
     }
     else
     {
@@ -48,9 +51,9 @@ CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
 
 glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position)
 {
-    // Primeiro prendemos o jogador dentro da area interna da sala retangular.
-    // Depois resolvemos obstaculos internos e prendemos novamente, pois uma
-    // colisao perto da parede poderia empurrar o jogador para fora da sala.
+    
+    
+    
     CollisionAABB walkable_room = MakeRoomWalkableAABB(ROOM_WIDTH, ROOM_DEPTH, WALL_HEIGHT, WALL_THICK, PLAYER_RADIUS);
     player_position = ClampPointToAABB(player_position, walkable_room);
 
@@ -62,19 +65,42 @@ glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position)
     if (player_feet_y < table_box.max.y - 0.05f)
         player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, table_box);
 
+    const float balcony_wall_y = BALCONY_FLOOR_TOP_Y + BALCONY_SIDE_WALL_HEIGHT / 2.0f;
+    const float balcony_wall_z_offset = BALCONY_FLOOR_HALF_EXTENTS.z - BALCONY_SIDE_WALL_HALF_EXTENTS.z;
+    for (int side = -1; side <= 1; side += 2)
+    {
+        CollisionAABB balcony_wall = MakeAABBFromCenterHalfExtents(
+            glm::vec3(BALCONY_FLOOR_CENTER.x, balcony_wall_y, side * balcony_wall_z_offset),
+            BALCONY_SIDE_WALL_HALF_EXTENTS
+        );
+        player_feet_y = player_position.y - PLAYER_EYE_HEIGHT;
+        if (player_feet_y < balcony_wall.max.y - 0.05f)
+            player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, balcony_wall);
+    }
+
     for (size_t i = 0; i < g_GameObjects.size(); ++i)
     {
         const GameObject& object = g_GameObjects[i];
 
-        // As pecas originais em cima da mesa sao fontes reutilizaveis e ficam
-        // cobertas pela colisao maior da mesa. A peca segurada tambem nao deve
-        // bloquear o jogador, pois ela acompanha a camera.
+        
+        
+        
         if (object.source || (int)i == g_HeldObjectIndex)
             continue;
 
         CollisionAABB object_box = GetGameObjectCollisionBox(object);
         player_feet_y = player_position.y - PLAYER_EYE_HEIGHT;
-        if (player_feet_y < object_box.max.y - 0.05f)
+        float walkable_top = GetWalkableTopHeightForObject(object, object_box, player_position);
+        if (object.objectId == TRIANGLE_PIECE)
+        {
+            if (!IsPlayerOnRampWalkableSurface(object, player_position, player_feet_y))
+                player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, object_box);
+            continue;
+        }
+
+        float jump_height = (PLAYER_JUMP_SPEED * PLAYER_JUMP_SPEED) / (2.0f * GRAVITY_ACCELERATION);
+        float climb_margin = std::min(jump_height + 0.10f, (object_box.max.y - object_box.min.y) + 0.10f);
+        if (player_feet_y < walkable_top - climb_margin)
             player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, object_box);
     }
 
@@ -96,17 +122,54 @@ float GetWalkableTopHeightForObject(const GameObject& object, const CollisionAAB
     if (object.objectId != TRIANGLE_PIECE)
         return object_box.max.y;
 
-    // A rampa triangular do OBJ sobe ao longo do eixo X local: em x=-0.6 a
-    // altura e 0.8, em x=+0.6 a altura e 0.0. Como atualmente as pecas nao sao
-    // rotacionadas pela interacao, usamos esse mapeamento direto para permitir
-    // caminhar pela inclinacao em vez de tratar a rampa como um bloco.
-    float t = (object_box.max.x - player_position.x) / std::max(0.001f, object_box.max.x - object_box.min.x);
+    
+    
+    
+    float local_x = 0.0f;
+    float local_z = 0.0f;
+    GetRampLocalXZ(object, player_position, &local_x, &local_z);
+
+    float t = (0.60f - local_x) / 1.20f;
     t = std::max(0.0f, std::min(1.0f, t));
-    return object_box.min.y + t * (object_box.max.y - object_box.min.y);
+    return object.position.y + (t * 1.45f * object.scale.y);
 }
 
-float FindPlayerSupportHeight(glm::vec3 player_position)
+bool GetRampLocalXZ(const GameObject& object, glm::vec3 player_position, float* local_x, float* local_z)
 {
+    if (object.objectId != TRIANGLE_PIECE)
+        return false;
+
+    glm::vec3 relative = player_position - object.position;
+    float c = cosf(-object.rotation.y);
+    float s = sinf(-object.rotation.y);
+    float local_x_scaled = c * relative.x + s * relative.z;
+    float local_z_scaled = -s * relative.x + c * relative.z;
+
+    *local_x = local_x_scaled / std::max(0.001f, object.scale.x);
+    *local_z = local_z_scaled / std::max(0.001f, object.scale.z);
+    return true;
+}
+
+bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_position, float player_feet_y)
+{
+    float local_x = 0.0f;
+    float local_z = 0.0f;
+    if (!GetRampLocalXZ(object, player_position, &local_x, &local_z))
+        return false;
+
+    const float entry_margin = 0.90f;
+    const float side_margin = 0.14f;
+    if (local_x < -0.60f - entry_margin || local_x > 0.60f + entry_margin)
+        return false;
+    if (std::fabs(local_z) > 0.40f + side_margin)
+        return false;
+
+    CollisionAABB object_box = GetGameObjectCollisionBox(object);
+    float walkable_top = GetWalkableTopHeightForObject(object, object_box, player_position);
+    return player_feet_y >= walkable_top - 0.28f && g_PlayerVerticalVelocity <= 1.25f;
+}
+
+float FindPlayerSupportHeight(glm::vec3 player_position){
     float support_height = 0.0f;
     float player_feet_y = player_position.y - PLAYER_EYE_HEIGHT;
 
@@ -118,6 +181,14 @@ float FindPlayerSupportHeight(glm::vec3 player_position)
         && player_feet_y >= table_box.max.y - 0.20f)
     {
         support_height = std::max(support_height, table_box.max.y);
+    }
+
+    CollisionAABB balcony_floor = MakeAABBFromCenterHalfExtents(BALCONY_FLOOR_CENTER, BALCONY_FLOOR_HALF_EXTENTS);
+    if (HorizontalCircleOverlapsAABB(player_position, PLAYER_RADIUS, balcony_floor)
+        && player_feet_y >= balcony_floor.min.y - 0.40f
+        && g_PlayerVerticalVelocity <= 1.25f)
+    {
+        support_height = std::max(support_height, balcony_floor.max.y);
     }
 
     for (size_t i = 0; i < g_GameObjects.size(); ++i)
@@ -134,12 +205,20 @@ float FindPlayerSupportHeight(glm::vec3 player_position)
             continue;
 
         float walkable_top = GetWalkableTopHeightForObject(object, object_box, player_position);
-        float step_margin = (object.objectId == TRIANGLE_PIECE) ? 0.35f : 0.20f;
+        if (object.objectId == TRIANGLE_PIECE)
+        {
+            if (IsPlayerOnRampWalkableSurface(object, player_position, player_feet_y))
+                support_height = std::max(support_height, walkable_top);
+            continue;
+        }
 
-        // O jogador pode caminhar sobre a peça quando seus pés estão próximos
-        // ou acima da superfície caminhável. Para a rampa, essa superfície é
-        // inclinada; para os demais objetos, é o topo da AABB.
-        if (player_feet_y >= walkable_top - step_margin)
+        float jump_height = (PLAYER_JUMP_SPEED * PLAYER_JUMP_SPEED) / (2.0f * GRAVITY_ACCELERATION);
+        float step_margin = std::min(jump_height + 0.10f, (object_box.max.y - object_box.min.y) + 0.10f);
+
+        
+        
+        
+        if (player_feet_y >= walkable_top - step_margin && g_PlayerVerticalVelocity <= 1.25f)
             support_height = std::max(support_height, walkable_top);
     }
 
@@ -178,8 +257,8 @@ bool HorizontalAABBOverlap(const CollisionAABB& a, const CollisionAABB& b)
 
 float FindSupportHeightForObject(size_t object_index, const CollisionAABB& before_box, const CollisionAABB& after_box)
 {
-    // O suporte mais básico é o chão da sala. A gravidade nunca deixa a peça
-    // passar abaixo desse plano, mantendo a interação estável e previsível.
+    
+    
     float support_height = 0.0f;
 
     CollisionAABB table_box = MakeAABBFromCenterHalfExtents(
@@ -206,9 +285,9 @@ float FindSupportHeightForObject(size_t object_index, const CollisionAABB& befor
         if (!HorizontalAABBOverlap(after_box, other_box))
             continue;
 
-        // A peca pousa se, durante este frame, sua base cruzou ou entrou no
-        // topo de outra peca. Usamos before_box.max.y > top para garantir que
-        // estamos tratando um suporte abaixo da peca, e nao algo acima dela.
+        
+        
+        
         if (before_box.max.y > other_box.max.y && after_box.min.y <= other_box.max.y)
             support_height = std::max(support_height, other_box.max.y);
     }
@@ -225,6 +304,21 @@ void UpdateDroppedObjectPhysics()
             continue;
 
         CollisionAABB before_box = GetGameObjectCollisionBox(object);
+
+        if (object.grounded)
+        {
+            CollisionAABB probe_box = before_box;
+            probe_box.min.y -= 0.06f;
+            probe_box.max.y -= 0.06f;
+            float resting_support = FindSupportHeightForObject(i, before_box, probe_box);
+            if (before_box.min.y <= resting_support + 0.08f)
+            {
+                object.position.y += resting_support + OBJECT_REST_EPSILON - before_box.min.y;
+                object.verticalVelocity = 0.0f;
+                object.grounded = true;
+                continue;
+            }
+        }
 
         object.verticalVelocity -= GRAVITY_ACCELERATION * g_DeltaTime;
         object.position.y += object.verticalVelocity * g_DeltaTime;
@@ -256,10 +350,46 @@ float ComputeHeldObjectScaleFactor()
     float distance_factor = std::max(0.0f, std::min(1.0f, (distance_from_table - 4.0f) / 10.0f));
 
     return 0.10f
-         + vertical_factor * vertical_factor * 11.90f
-         + vertical_factor * distance_factor * 2.00f;
+         + vertical_factor * vertical_factor * 13.20f
+         + vertical_factor * distance_factor * 2.35f;
 }
 
+float ComputeHeldObjectMaxScaleRatio(const GameObject& object)
+{
+    GameObject base_object = object;
+    base_object.scale = object.baseScale;
+    CollisionAABB base_box = GetGameObjectCollisionBox(base_object);
+
+    float base_width = std::max(0.01f, base_box.max.x - base_box.min.x);
+    float base_height = std::max(0.01f, base_box.max.y - base_box.min.y);
+    float base_depth = std::max(0.01f, base_box.max.z - base_box.min.z);
+
+    CollisionAABB room = MakeRoomWalkableAABB(ROOM_WIDTH, ROOM_DEPTH, WALL_HEIGHT, WALL_THICK, PLAYER_RADIUS);
+    float room_width = std::max(0.01f, room.max.x - room.min.x);
+    float room_depth = std::max(0.01f, room.max.z - room.min.z);
+
+    const float MAX_HELD_SCALE_RATIO = 5.75f;
+    float room_limited_ratio = std::min(room_width / base_width, room_depth / base_depth) * 0.48f;
+    float height_limited_ratio = (WALL_HEIGHT - 0.40f) / base_height;
+
+    return std::max(1.0f, std::min(MAX_HELD_SCALE_RATIO, std::min(room_limited_ratio, height_limited_ratio)));
+}
+float ComputeHeldObjectMaxDistance(const GameObject& object, float preferred_distance)
+{
+    if (g_CameraForward.y <= 0.02f)
+        return preferred_distance;
+
+    CollisionAABB object_box = GetGameObjectCollisionBox(object);
+    float object_height = std::max(0.01f, object_box.max.y - object_box.min.y);
+    float max_origin_y = WALL_HEIGHT - 0.25f - object_height;
+    float camera_y = g_CameraPosition.y;
+
+    if (max_origin_y <= camera_y)
+        return std::min(preferred_distance, 1.25f);
+
+    float ceiling_distance = (max_origin_y - camera_y) / g_CameraForward.y;
+    return std::max(1.25f, std::min(preferred_distance, ceiling_distance));
+}
 float ComputeHeldObjectDistance()
 {
     float vertical_factor = (g_CameraForward.y + 1.0f) / 2.0f;
@@ -302,9 +432,9 @@ int FindTargetedGameObject()
         float object_radius = std::max(object.scale.x, std::max(object.scale.y, object.scale.z)) * 0.8f + 0.20f;
         float depth = 0.0f;
 
-        // Interseccao da mira central com a peca: aproximamos cada objeto por
-        // uma esfera. Isso e suficiente para o puzzle atual e deixa a selecao
-        // com proposito claro dentro da logica da aplicacao.
+        
+        
+        
         if (RayIntersectsSphere(camera_position, g_CameraForward, object.position, object_radius, 8.0f, &depth)
             && depth < best_depth)
         {
@@ -359,6 +489,9 @@ void ToggleHeldObject()
         g_GameObjects[g_HeldObjectIndex].physicsEnabled = true;
         g_GameObjects[g_HeldObjectIndex].grounded = false;
         g_GameObjects[g_HeldObjectIndex].verticalVelocity = 0.0f;
+        g_HeldHasOriginalObject = false;
+        g_HeldWasSourceCopy = false;
+        g_HeldYawOffset = 0.0f;
         g_HeldObjectIndex = -1;
         g_SelectedObjectIndex = -1;
         return;
@@ -371,8 +504,8 @@ void ToggleHeldObject()
     {
         if (g_GameObjects[g_SelectedObjectIndex].source)
         {
-            // Pecas originais sobre a mesa sao fontes reutilizaveis: pegar uma
-            // delas cria uma copia segurada e deixa a fonte no lugar.
+            
+            
             GameObject heldCopy = g_GameObjects[g_SelectedObjectIndex];
             heldCopy.selectable = false;
             heldCopy.source = false;
@@ -382,12 +515,18 @@ void ToggleHeldObject()
             heldCopy.baseScale = heldCopy.scale;
             g_GameObjects.push_back(heldCopy);
             g_HeldObjectIndex = (int)g_GameObjects.size() - 1;
+            g_HeldOriginalObject = heldCopy;
+            g_HeldHasOriginalObject = true;
+            g_HeldWasSourceCopy = true;
         }
         else
         {
-            // Pecas ja soltas no mundo podem ser pegas novamente. Nesse caso,
-            // seguramos o proprio objeto, sem duplicar a malha logica.
+            
+            
             g_HeldObjectIndex = g_SelectedObjectIndex;
+            g_HeldOriginalObject = g_GameObjects[g_HeldObjectIndex];
+            g_HeldHasOriginalObject = true;
+            g_HeldWasSourceCopy = false;
             g_GameObjects[g_HeldObjectIndex].selectable = false;
             g_GameObjects[g_HeldObjectIndex].physicsEnabled = false;
             g_GameObjects[g_HeldObjectIndex].grounded = false;
@@ -395,14 +534,162 @@ void ToggleHeldObject()
             g_GameObjects[g_HeldObjectIndex].baseScale = g_GameObjects[g_HeldObjectIndex].scale;
         }
 
-        // Guardamos o fator de escala do exato momento em que o jogador pega
-        // a peça. Assim, no primeiro frame segurando, a razão é 1.0 e o objeto
-        // aparece com o mesmo tamanho que tinha sobre a mesa/no mundo. A escala
-        // só passa a mudar quando o jogador anda ou altera a direção da câmera.
+        
+        
+        
+        
+        g_HeldYawOffset = g_GameObjects[g_HeldObjectIndex].rotation.y - ComputeYawFromDirection(g_CameraForward);
         g_HeldReferenceScaleFactor = ComputeHeldObjectScaleFactor();
         g_SelectedObjectIndex = g_HeldObjectIndex;
         printf("Segurando objeto: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
         fflush(stdout);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void CancelHeldObject()
+{
+    if (g_HeldObjectIndex < 0)
+    {
+        g_SelectedObjectIndex = -1;
+        return;
+    }
+
+    printf("Manipulacao cancelada: %s\n", g_GameObjects[g_HeldObjectIndex].meshName.c_str());
+    fflush(stdout);
+
+    if (g_HeldWasSourceCopy)
+    {
+        g_GameObjects.erase(g_GameObjects.begin() + g_HeldObjectIndex);
+    }
+    else if (g_HeldHasOriginalObject)
+    {
+        g_GameObjects[g_HeldObjectIndex] = g_HeldOriginalObject;
+        g_GameObjects[g_HeldObjectIndex].selectable = true;
+        g_GameObjects[g_HeldObjectIndex].movable = true;
+    }
+
+    g_HeldObjectIndex = -1;
+    g_SelectedObjectIndex = -1;
+    g_HeldHasOriginalObject = false;
+    g_HeldWasSourceCopy = false;
+}
+
+
+void ResetGameState()
+{
+    g_GameObjects.clear();
+
+    GameObject cube;
+    cube.meshName = "puzzle_cube";
+    cube.objectId = CUBE_PIECE;
+    cube.position = TABLE_POSITION + glm::vec3(-0.75f, 1.61f, 0.10f);
+    cube.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cube.scale = glm::vec3(0.35f, 0.35f, 0.35f);
+    cube.baseScale = cube.scale;
+    cube.selectable = true;
+    cube.movable = true;
+    cube.source = true;
+    cube.physicsEnabled = false;
+    cube.grounded = true;
+    cube.verticalVelocity = 0.0f;
+    g_GameObjects.push_back(cube);
+
+    GameObject triangularPiece;
+    triangularPiece.meshName = "puzzle_triangular_piece";
+    triangularPiece.objectId = TRIANGLE_PIECE;
+    triangularPiece.position = TABLE_POSITION + glm::vec3(0.05f, 1.61f, 0.08f);
+    triangularPiece.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    triangularPiece.scale = glm::vec3(0.42f, 0.42f, 0.42f);
+    triangularPiece.baseScale = triangularPiece.scale;
+    triangularPiece.selectable = true;
+    triangularPiece.movable = true;
+    triangularPiece.source = true;
+    triangularPiece.physicsEnabled = false;
+    triangularPiece.grounded = true;
+    triangularPiece.verticalVelocity = 0.0f;
+    g_GameObjects.push_back(triangularPiece);
+
+    GameObject cylinder;
+    cylinder.meshName = "puzzle_cylinder";
+    cylinder.objectId = CYLINDER_PIECE;
+    cylinder.position = TABLE_POSITION + glm::vec3(0.82f, 1.61f, 0.08f);
+    cylinder.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    cylinder.scale = glm::vec3(0.45f, 0.45f, 0.45f);
+    cylinder.baseScale = cylinder.scale;
+    cylinder.selectable = true;
+    cylinder.movable = true;
+    cylinder.source = true;
+    cylinder.physicsEnabled = false;
+    cylinder.grounded = true;
+    cylinder.verticalVelocity = 0.0f;
+    g_GameObjects.push_back(cylinder);
+
+    g_SelectedObjectIndex = -1;
+    g_HeldObjectIndex = -1;
+    g_HeldReferenceScaleFactor = 1.0f;
+    g_HeldHasOriginalObject = false;
+    g_HeldWasSourceCopy = false;
+    g_CameraTheta = INITIAL_CAMERA_THETA;
+    g_CameraPhi = INITIAL_CAMERA_PHI;
+    g_CameraPosition = INITIAL_CAMERA_POSITION;
+    g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
+    g_PlayerVerticalVelocity = 0.0f;
+    g_PlayerGrounded = true;
+    g_KeyW_Pressed = false;
+    g_KeyA_Pressed = false;
+    g_KeyS_Pressed = false;
+    g_KeyD_Pressed = false;
+    g_BezierGuideT = 0.0f;
+    g_ExitAnimTime = 0.0f;
+    g_GameWon = false;
+    g_VictoryTimer = 0.0f;
+}
+
+void UpdateVictoryState()
+{
+    if (g_GameWon)
+    {
+        g_VictoryTimer += g_DeltaTime;
+        if (g_VictoryTimer >= 5.0f)
+            ResetGameState();
+        return;
+    }
+
+    glm::vec3 player_position(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
+    float player_feet_y = player_position.y - PLAYER_EYE_HEIGHT;
+    CollisionAABB balcony_floor = MakeAABBFromCenterHalfExtents(BALCONY_FLOOR_CENTER, BALCONY_FLOOR_HALF_EXTENTS);
+
+    if (HorizontalCircleOverlapsAABB(player_position, PLAYER_RADIUS, balcony_floor)
+        && player_feet_y >= balcony_floor.max.y - 0.08f
+        && player_feet_y <= balcony_floor.max.y + 0.20f
+        && g_PlayerVerticalVelocity <= 0.20f)
+    {
+        g_GameWon = true;
+        g_VictoryTimer = 0.0f;
+        g_HeldObjectIndex = -1;
+        g_SelectedObjectIndex = -1;
+        g_PlayerVerticalVelocity = 0.0f;
+    }
+}
+
+
+
 

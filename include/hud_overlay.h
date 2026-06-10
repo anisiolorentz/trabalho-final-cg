@@ -12,5 +12,9 @@ enum HudOverlayState
 
 void HudOverlay_Init();
 void HudOverlay_Draw(GLFWwindow* window, HudOverlayState state);
+void HudOverlay_DrawVictory(GLFWwindow* window, float elapsed_time);
 
 #endif
+
+
+

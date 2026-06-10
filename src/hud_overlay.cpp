@@ -155,8 +155,8 @@ static void HudOverlay_DrawOpenHand(GLFWwindow* window)
     glm::vec4 shade = glm::vec4(0.68f, 0.72f, 0.78f, 0.82f);
     glm::vec4 black = glm::vec4(0.04f, 0.04f, 0.04f, 0.96f);
 
-    // Mao aberta simples: voltamos a uma silhueta parecida com a referencia,
-    // mas com sombra discreta e proporcoes menores para nao poluir a mira.
+    
+    
     HudOverlay_DrawRect(window, HudPixelX(window, 2.0f), -HudPixelY(window, 5.0f), 16.0f, 17.0f, black);
     HudOverlay_DrawRect(window, HudPixelX(window, 2.0f), -HudPixelY(window, 5.0f), 12.0f, 13.0f, white);
 
@@ -178,8 +178,8 @@ static void HudOverlay_DrawClosedHand(GLFWwindow* window)
     glm::vec4 shade = glm::vec4(0.68f, 0.72f, 0.78f, 0.86f);
     glm::vec4 black = glm::vec4(0.04f, 0.04f, 0.04f, 0.96f);
 
-    // Mao fechada compacta. O formato evita a aparencia pesada da versao com
-    // elipses grandes e ainda comunica que a peca esta sendo segurada.
+    
+    
     HudOverlay_DrawRect(window, HudPixelX(window, 1.0f), -HudPixelY(window, 2.0f), 22.0f, 16.0f, black);
     HudOverlay_DrawRect(window, HudPixelX(window, 1.0f), -HudPixelY(window, 2.0f), 17.0f, 12.0f, white);
 
@@ -211,3 +211,59 @@ void HudOverlay_Draw(GLFWwindow* window, HudOverlayState state)
 
     HudOverlay_DrawNeutralCircle(window);
 }
+
+static float HudOverlay_Fract(float value)
+{
+    return value - floorf(value);
+}
+
+static void HudOverlay_DrawStar(GLFWwindow* window, float cx, float cy, float size_px, glm::vec4 color)
+{
+    HudOverlay_DrawRect(window, cx, cy, size_px, size_px * 0.22f, color);
+    HudOverlay_DrawRect(window, cx, cy, size_px * 0.22f, size_px, color);
+    HudOverlay_DrawRect(window, cx, cy, size_px * 0.60f, size_px * 0.60f, color);
+}
+
+void HudOverlay_DrawVictory(GLFWwindow* window, float elapsed_time)
+{
+    const glm::vec4 colors[] = {
+        glm::vec4(1.00f, 0.95f, 0.28f, 0.95f),
+        glm::vec4(0.35f, 0.85f, 1.00f, 0.90f),
+        glm::vec4(1.00f, 0.40f, 0.55f, 0.92f),
+        glm::vec4(0.72f, 1.00f, 0.45f, 0.90f)
+    };
+
+    for (int i = 0; i < 34; ++i)
+    {
+        float seed = (float)i * 12.9898f;
+        float x = -0.82f + 1.64f * HudOverlay_Fract(sinf(seed) * 43758.5453f);
+        float drift = sinf(elapsed_time * 2.2f + (float)i) * 0.07f;
+        float fall = HudOverlay_Fract(elapsed_time * (0.18f + 0.012f * (float)(i % 7)) + (float)(i % 11) * 0.091f);
+        float y = 0.72f - fall * 1.42f;
+        float w = 7.0f + (float)(i % 4) * 2.0f;
+        float h = 3.0f + (float)(i % 3) * 2.0f;
+        HudOverlay_DrawRect(window, x + drift, y, w, h, colors[i % 4]);
+    }
+
+    for (int i = 0; i < 10; ++i)
+    {
+        float a = elapsed_time * 1.8f + (float)i * 0.628318f;
+        float radius = 0.20f + 0.018f * (float)(i % 3);
+        float x = cosf(a) * radius;
+        float y = 0.18f + sinf(a) * radius * 0.65f;
+        HudOverlay_DrawStar(window, x, y, 14.0f + (float)(i % 3) * 3.0f, colors[(i + 1) % 4]);
+    }
+
+    TextRendering_PrintString(window, "Parabens! Puzzle completo!", -0.43f, 0.05f, 1.25f);
+
+    if (elapsed_time >= 2.0f)
+    {
+        int remaining = 3 - (int)floorf(elapsed_time - 2.0f);
+        if (remaining < 1)
+            remaining = 1;
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "Recomecando em %d...", remaining);
+        TextRendering_PrintString(window, buffer, -0.27f, -0.12f, 0.95f);
+    }
+}
+

@@ -17,3 +17,4 @@ void DebugOverlay_ShowProjection(GLFWwindow* window, const DebugOverlayConfig& c
 void DebugOverlay_ShowFramesPerSecond(GLFWwindow* window, const DebugOverlayConfig& config);
 
 #endif
+

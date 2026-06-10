@@ -1,5 +1,5 @@
-// Based on http://hamelot.io/visualization/opengl-text-without-any-external-libraries/
-//   and on https://github.com/rougier/freetype-gl
+
+
 #include <string>
 
 #include <glad/glad.h>
@@ -11,7 +11,7 @@
 #include "utils.h"
 #include "dejavufont.h"
 
-GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id); // Função definida em main.cpp
+GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id); 
 
 const GLchar* const textvertexshader_source = ""
 "#version 330\n"
@@ -37,25 +37,25 @@ const GLchar* const textfragmentshader_source = ""
 
 void TextRendering_LoadShader(const GLchar* const shader_string, GLuint shader_id)
 {
-    // Define o código do shader, contido na string "shader_string"
+    
     glShaderSource(shader_id, 1, &shader_string, NULL);
 
-    // Compila o código do shader (em tempo de execução)
+    
     glCompileShader(shader_id);
 
-    // Verificamos se ocorreu algum erro ou "warning" durante a compilação
+    
     GLint compiled_ok;
     glGetShaderiv(shader_id, GL_COMPILE_STATUS, &compiled_ok);
 
     GLint log_length = 0;
     glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
 
-    // Alocamos memória para guardar o log de compilação.
-    // A chamada "new" em C++ é equivalente ao "malloc()" do C.
+    
+    
     GLchar* log = new GLchar[log_length];
     glGetShaderInfoLog(shader_id, log_length, &log_length, log);
 
-    // Imprime no terminal qualquer erro ou "warning" de compilação
+    
     if ( log_length != 0 )
     {
         std::string  output;
@@ -78,7 +78,7 @@ void TextRendering_LoadShader(const GLchar* const shader_string, GLuint shader_i
         fprintf(stderr, "%s", output.c_str());
     }
 
-    // A chamada "delete" em C++ é equivalente ao "free()" do C
+    
     delete [] log;
 }
 
@@ -154,7 +154,7 @@ void TextRendering_PrintString(GLFWwindow* window, const std::string &str, float
 
     for (size_t i = 0; i < str.size(); i++)
     {
-        // Find the glyph for the character we are looking for
+        
         texture_glyph_t *glyph = 0;
         for (size_t j = 0; j < dejavufont.glyphs_count; ++j)
         {
@@ -304,3 +304,4 @@ void TextRendering_PrintMatrixVectorProductDivW(GLFWwindow* window, glm::mat4 M,
     snprintf(buffer, 90, "[%+0.2f %+0.2f %+0.2f %+0.2f][%+0.2f]     [%+0.2f]        [%+0.2f]\n", M[0][3], M[1][3], M[2][3], M[3][3], v[3], r[3], r[3]/w);
     TextRendering_PrintString(window, buffer, x, y - 3*lineheight, scale);
 }
+

@@ -27,3 +27,4 @@ glm::vec3 CubicBezier(float t, glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, glm::ve
 void DrawBezierGuide(const BezierGuideRenderConfig& config, DrawVirtualObjectCallback draw_object);
 
 #endif
+

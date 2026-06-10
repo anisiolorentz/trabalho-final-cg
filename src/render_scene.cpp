@@ -84,7 +84,7 @@ void LoadTextureImage(const char* filename)
 {
     printf("Carregando imagem \"%s\"... ", filename);
 
-    // Primeiro fazemos a leitura da imagem do disco
+    
     stbi_set_flip_vertically_on_load(true);
     int width;
     int height;
@@ -99,21 +99,21 @@ void LoadTextureImage(const char* filename)
 
     printf("OK (%dx%d).\n", width, height);
 
-    // Agora criamos objetos na GPU com OpenGL para armazenar a textura
+    
     GLuint texture_id;
     GLuint sampler_id;
     glGenTextures(1, &texture_id);
     glGenSamplers(1, &sampler_id);
 
-    // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
+    
     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Parâmetros de amostragem da textura.
+    
     glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // Agora enviamos a imagem lida do disco para a GPU
+    
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -131,27 +131,27 @@ void LoadTextureImage(const char* filename)
     g_NumLoadedTextures += 1;
 }
 
-// Função que desenha um objeto armazenado em g_VirtualScene. Veja definição
-// dos objetos na função BuildTrianglesAndAddToVirtualScene().
+
+
 void DrawVirtualObject(const char* object_name)
 {
-    // "Ligamos" o VAO. Informamos que queremos utilizar os atributos de
-    // vértices apontados pelo VAO criado pela função BuildTrianglesAndAddToVirtualScene(). Veja
-    // comentários detalhados dentro da definição de BuildTrianglesAndAddToVirtualScene().
+    
+    
+    
     glBindVertexArray(g_VirtualScene[object_name].vertex_array_object_id);
 
-    // Setamos as variáveis "bbox_min" e "bbox_max" do fragment shader
-    // com os parâmetros da axis-aligned bounding box (AABB) do modelo.
+    
+    
     glm::vec3 bbox_min = g_VirtualScene[object_name].bbox_min;
     glm::vec3 bbox_max = g_VirtualScene[object_name].bbox_max;
     glUniform4f(g_bbox_min_uniform, bbox_min.x, bbox_min.y, bbox_min.z, 1.0f);
     glUniform4f(g_bbox_max_uniform, bbox_max.x, bbox_max.y, bbox_max.z, 1.0f);
 
-    // Pedimos para a GPU rasterizar os vértices dos eixos XYZ
-    // apontados pelo VAO como linhas. Veja a definição de
-    // g_VirtualScene[""] dentro da função BuildTrianglesAndAddToVirtualScene(), e veja
-    // a documentação da função glDrawElements() em
-    // http://docs.gl/gl3/glDrawElements.
+    
+    
+    
+    
+    
     glDrawElements(
         g_VirtualScene[object_name].rendering_mode,
         g_VirtualScene[object_name].num_indices,
@@ -159,59 +159,61 @@ void DrawVirtualObject(const char* object_name)
         (void*)(g_VirtualScene[object_name].first_index * sizeof(GLuint))
     );
 
-    // "Desligamos" o VAO, evitando assim que operações posteriores venham a
-    // alterar o mesmo. Isso evita bugs.
+    
+    
     glBindVertexArray(0);
 }
 
 void LoadShadersFromFiles()
 {
-    // Note que o caminho para os arquivos "shader_vertex.glsl" e
-    // "shader_fragment.glsl" estão fixados, sendo que assumimos a existência
-    // da seguinte estrutura no sistema de arquivos:
-    //
-    //    + FCG_Lab_01/
-    //    |
-    //    +--+ bin/
-    //    |  |
-    //    |  +--+ Release/  (ou Debug/ ou Linux/)
-    //    |     |
-    //    |     o-- main.exe
-    //    |
-    //    +--+ src/
-    //       |
-    //       o-- shader_vertex.glsl
-    //       |
-    //       o-- shader_fragment.glsl
-    //
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     GLuint vertex_shader_id = LoadShader_Vertex("../../src/shader_vertex.glsl");
     GLuint fragment_shader_id = LoadShader_Fragment("../../src/shader_fragment.glsl");
 
-    // Deletamos o programa de GPU anterior, caso ele exista.
+    
     if ( g_GpuProgramID != 0 )
         glDeleteProgram(g_GpuProgramID);
 
-    // Criamos um programa de GPU utilizando os shaders carregados acima.
+    
     g_GpuProgramID = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
 
-    // Buscamos o endereço das variáveis definidas dentro do Vertex Shader.
-    // Utilizaremos estas variáveis para enviar dados para a placa de vídeo
-    // (GPU)! Veja arquivo "shader_vertex.glsl" e "shader_fragment.glsl".
-    g_model_uniform      = glGetUniformLocation(g_GpuProgramID, "model"); // Variável da matriz "model"
-    g_view_uniform       = glGetUniformLocation(g_GpuProgramID, "view"); // Variável da matriz "view" em shader_vertex.glsl
-    g_projection_uniform = glGetUniformLocation(g_GpuProgramID, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
-    g_object_id_uniform  = glGetUniformLocation(g_GpuProgramID, "object_id"); // Variável "object_id" em shader_fragment.glsl
+    
+    
+    
+    g_model_uniform      = glGetUniformLocation(g_GpuProgramID, "model"); 
+    g_view_uniform       = glGetUniformLocation(g_GpuProgramID, "view"); 
+    g_projection_uniform = glGetUniformLocation(g_GpuProgramID, "projection"); 
+    g_object_id_uniform  = glGetUniformLocation(g_GpuProgramID, "object_id"); 
     g_bbox_min_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_min");
     g_bbox_max_uniform   = glGetUniformLocation(g_GpuProgramID, "bbox_max");
     g_shadow_alpha_uniform = glGetUniformLocation(g_GpuProgramID, "shadow_alpha");
     g_guide_color_uniform = glGetUniformLocation(g_GpuProgramID, "guide_color");
 
-    // Variáveis em "shader_fragment.glsl" para acesso das imagens de textura
+    
     glUseProgram(g_GpuProgramID);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage0"), 0);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3); // slot novo no merge — mesa de madeira
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3); 
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4); 
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5); 
     glUniform1f(g_shadow_alpha_uniform, 0.28f);
     glUniform3f(g_guide_color_uniform, 1.0f, 1.0f, 1.0f);
     glUseProgram(0);
@@ -222,12 +224,12 @@ void ComputeNormals(ObjModel* model)
     if ( !model->attrib.normals.empty() )
         return;
 
-    // Primeiro computamos as normais para todos os TRIÂNGULOS.
-    // Segundo, computamos as normais dos VÉRTICES através do método proposto
-    // por Gouraud, onde a normal de cada vértice vai ser a média das normais de
-    // todas as faces que compartilham este vértice e que pertencem ao mesmo "smoothing group".
+    
+    
+    
+    
 
-    // Obtemos a lista dos smoothing groups que existem no objeto
+    
     std::set<unsigned int> sgroup_ids;
     for (size_t shape = 0; shape < model->shapes.size(); ++shape)
     {
@@ -247,13 +249,13 @@ void ComputeNormals(ObjModel* model)
     size_t num_vertices = model->attrib.vertices.size() / 3;
     model->attrib.normals.reserve( 3*num_vertices );
 
-    // Processamos um smoothing group por vez
+    
     for (const unsigned int & sgroup : sgroup_ids)
     {
         std::vector<int> num_triangles_per_vertex(num_vertices, 0);
         std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f,0.0f,0.0f,0.0f));
 
-        // Acumulamos as normais dos vértices de todos triângulos deste smoothing group
+        
         for (size_t shape = 0; shape < model->shapes.size(); ++shape)
         {
             size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
@@ -290,7 +292,7 @@ void ComputeNormals(ObjModel* model)
             }
         }
 
-        // Computamos a média das normais acumuladas
+        
         std::vector<size_t> normal_indices(num_vertices, 0);
 
         for (size_t vertex_index = 0; vertex_index < vertex_normals.size(); ++vertex_index)
@@ -309,7 +311,7 @@ void ComputeNormals(ObjModel* model)
             normal_indices[vertex_index] = normal_index;
         }
 
-        // Escrevemos os índices das normais para os vértices dos triângulos deste smoothing group
+        
         for (size_t shape = 0; shape < model->shapes.size(); ++shape)
         {
             size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
@@ -368,11 +370,11 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
                 const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
                 const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
                 const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
-                //printf("tri %d vert %d = (%.2f, %.2f, %.2f)\n", (int)triangle, (int)vertex, vx, vy, vz);
-                model_coefficients.push_back( vx ); // X
-                model_coefficients.push_back( vy ); // Y
-                model_coefficients.push_back( vz ); // Z
-                model_coefficients.push_back( 1.0f ); // W
+                
+                model_coefficients.push_back( vx ); 
+                model_coefficients.push_back( vy ); 
+                model_coefficients.push_back( vz ); 
+                model_coefficients.push_back( 1.0f ); 
 
                 bbox_min.x = std::min(bbox_min.x, vx);
                 bbox_min.y = std::min(bbox_min.y, vy);
@@ -381,20 +383,20 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
                 bbox_max.y = std::max(bbox_max.y, vy);
                 bbox_max.z = std::max(bbox_max.z, vz);
 
-                // Inspecionando o código da tinyobjloader, o aluno Bernardo
-                // Sulzbach (2017/1) apontou que a maneira correta de testar se
-                // existem normais e coordenadas de textura no ObjModel é
-                // comparando se o índice retornado é -1. Fazemos isso abaixo.
+                
+                
+                
+                
 
                 if ( idx.normal_index != -1 )
                 {
                     const float nx = model->attrib.normals[3*idx.normal_index + 0];
                     const float ny = model->attrib.normals[3*idx.normal_index + 1];
                     const float nz = model->attrib.normals[3*idx.normal_index + 2];
-                    normal_coefficients.push_back( nx ); // X
-                    normal_coefficients.push_back( ny ); // Y
-                    normal_coefficients.push_back( nz ); // Z
-                    normal_coefficients.push_back( 0.0f ); // W
+                    normal_coefficients.push_back( nx ); 
+                    normal_coefficients.push_back( ny ); 
+                    normal_coefficients.push_back( nz ); 
+                    normal_coefficients.push_back( 0.0f ); 
                 }
 
                 if ( idx.texcoord_index != -1 )
@@ -411,9 +413,9 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
 
         SceneObject theobject;
         theobject.name           = model->shapes[shape].name;
-        theobject.first_index    = first_index; // Primeiro índice
-        theobject.num_indices    = last_index - first_index + 1; // Número de indices
-        theobject.rendering_mode = GL_TRIANGLES;       // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+        theobject.first_index    = first_index; 
+        theobject.num_indices    = last_index - first_index + 1; 
+        theobject.rendering_mode = GL_TRIANGLES;       
         theobject.vertex_array_object_id = vertex_array_object_id;
 
         theobject.bbox_min = bbox_min;
@@ -427,8 +429,8 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
     glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
     glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
-    GLuint location = 0; // "(location = 0)" em "shader_vertex.glsl"
-    GLint  number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+    GLuint location = 0; 
+    GLint  number_of_dimensions = 4; 
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -440,8 +442,8 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
         glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
         glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
-        location = 1; // "(location = 1)" em "shader_vertex.glsl"
-        number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+        location = 1; 
+        number_of_dimensions = 4; 
         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -454,8 +456,8 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
         glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
         glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
-        location = 2; // "(location = 1)" em "shader_vertex.glsl"
-        number_of_dimensions = 2; // vec2 em "shader_vertex.glsl"
+        location = 2; 
+        number_of_dimensions = 2; 
         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -464,52 +466,52 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
     GLuint indices_id;
     glGenBuffers(1, &indices_id);
 
-    // "Ligamos" o buffer. Note que o tipo agora é GL_ELEMENT_ARRAY_BUFFER.
+    
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), NULL, GL_STATIC_DRAW);
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(GLuint), indices.data());
-    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // XXX Errado!
-    //
+    
+    
 
-    // "Desligamos" o VAO, evitando assim que operações posteriores venham a
-    // alterar o mesmo. Isso evita bugs.
+    
+    
     glBindVertexArray(0);
 }
 
 static GLuint LoadShader_Vertex(const char* filename)
 {
-    // Criamos um identificador (ID) para este shader, informando que o mesmo
-    // será aplicado nos vértices.
+    
+    
     GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
 
-    // Carregamos e compilamos o shader
+    
     LoadShader(filename, vertex_shader_id);
 
-    // Retorna o ID gerado acima
+    
     return vertex_shader_id;
 }
 
-// Carrega um Fragment Shader de um arquivo GLSL . Veja definição de LoadShader() abaixo.
+
 static GLuint LoadShader_Fragment(const char* filename)
 {
-    // Criamos um identificador (ID) para este shader, informando que o mesmo
-    // será aplicado nos fragmentos.
+    
+    
     GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
 
-    // Carregamos e compilamos o shader
+    
     LoadShader(filename, fragment_shader_id);
 
-    // Retorna o ID gerado acima
+    
     return fragment_shader_id;
 }
 
-// Função auxilar, utilizada pelas duas funções acima. Carrega código de GPU de
-// um arquivo GLSL e faz sua compilação.
+
+
 static void LoadShader(const char* filename, GLuint shader_id)
 {
-    // Lemos o arquivo de texto indicado pela variável "filename"
-    // e colocamos seu conteúdo em memória, apontado pela variável
-    // "shader_string".
+    
+    
+    
     std::ifstream file;
     try {
         file.exceptions(std::ifstream::failbit);
@@ -524,25 +526,25 @@ static void LoadShader(const char* filename, GLuint shader_id)
     const GLchar* shader_string = str.c_str();
     const GLint   shader_string_length = static_cast<GLint>( str.length() );
 
-    // Define o código do shader GLSL, contido na string "shader_string"
+    
     glShaderSource(shader_id, 1, &shader_string, &shader_string_length);
 
-    // Compila o código do shader GLSL (em tempo de execução)
+    
     glCompileShader(shader_id);
 
-    // Verificamos se ocorreu algum erro ou "warning" durante a compilação
+    
     GLint compiled_ok;
     glGetShaderiv(shader_id, GL_COMPILE_STATUS, &compiled_ok);
 
     GLint log_length = 0;
     glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
 
-    // Alocamos memória para guardar o log de compilação.
-    // A chamada "new" em C++ é equivalente ao "malloc()" do C.
+    
+    
     GLchar* log = new GLchar[log_length];
     glGetShaderInfoLog(shader_id, log_length, &log_length, log);
 
-    // Imprime no terminal qualquer erro ou "warning" de compilação
+    
     if ( log_length != 0 )
     {
         std::string  output;
@@ -569,36 +571,36 @@ static void LoadShader(const char* filename, GLuint shader_id)
         fprintf(stderr, "%s", output.c_str());
     }
 
-    // A chamada "delete" em C++ é equivalente ao "free()" do C
+    
     delete [] log;
 }
 
-// Esta função cria um programa de GPU, o qual contém obrigatoriamente um
-// Vertex Shader e um Fragment Shader.
+
+
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
 {
-    // Criamos um identificador (ID) para este programa de GPU
+    
     GLuint program_id = glCreateProgram();
 
-    // Definição dos dois shaders GLSL que devem ser executados pelo programa
+    
     glAttachShader(program_id, vertex_shader_id);
     glAttachShader(program_id, fragment_shader_id);
 
-    // Linkagem dos shaders acima ao programa
+    
     glLinkProgram(program_id);
 
-    // Verificamos se ocorreu algum erro durante a linkagem
+    
     GLint linked_ok = GL_FALSE;
     glGetProgramiv(program_id, GL_LINK_STATUS, &linked_ok);
 
-    // Imprime no terminal qualquer erro de linkagem
+    
     if ( linked_ok == GL_FALSE )
     {
         GLint log_length = 0;
         glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &log_length);
 
-        // Alocamos memória para guardar o log de compilação.
-        // A chamada "new" em C++ é equivalente ao "malloc()" do C.
+        
+        
         GLchar* log = new GLchar[log_length];
 
         glGetProgramInfoLog(program_id, log_length, &log_length, log);
@@ -610,22 +612,22 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
         output += log;
         output += "\n== End of link log\n";
 
-        // A chamada "delete" em C++ é equivalente ao "free()" do C
+        
         delete [] log;
 
         fprintf(stderr, "%s", output.c_str());
     }
 
-    // Os "Shader Objects" podem ser marcados para deleção após serem linkados 
+    
     glDeleteShader(vertex_shader_id);
     glDeleteShader(fragment_shader_id);
 
-    // Retornamos o ID gerado acima
+    
     return program_id;
 }
 
-// Funcao para debugging: imprime no terminal todas informações de um modelo
-// geométrico carregado de um arquivo ".obj".
+
+
 void PrintObjModelInfo(ObjModel* model)
 {
   const tinyobj::attrib_t                & attrib    = model->attrib;
@@ -658,7 +660,7 @@ void PrintObjModelInfo(ObjModel* model)
            static_cast<const double>(attrib.texcoords[2 * v + 1]));
   }
 
-  // For each shape
+  
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", static_cast<long>(i),
            shapes[i].name.c_str());
@@ -673,14 +675,14 @@ void PrintObjModelInfo(ObjModel* model)
     printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i),
            static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
 
-    // For each face
+    
     for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
       size_t fnum = shapes[i].mesh.num_face_vertices[f];
 
       printf("  face[%ld].fnum = %ld\n", static_cast<long>(f),
              static_cast<unsigned long>(fnum));
 
-      // For each vertex in the face
+      
       for (size_t v = 0; v < fnum; v++) {
         tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
         printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f),
@@ -791,5 +793,8 @@ void PrintObjModelInfo(ObjModel* model)
     printf("\n");
   }
 }
+
+
+
 
 

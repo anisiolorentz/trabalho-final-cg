@@ -13,10 +13,10 @@ CollisionAABB MakeAABBFromCenterHalfExtents(glm::vec3 center, glm::vec3 half_ext
 
 CollisionAABB MakeRoomWalkableAABB(float room_width, float room_depth, float wall_height, float wall_thickness, float player_radius)
 {
-    // A sala desenhada em main.cpp possui paredes centradas nas bordas.
-    // Esta caixa representa somente a area interna caminhavel, ja descontando
-    // a espessura da parede e um pequeno raio do jogador para evitar que a
-    // camera encoste visualmente na geometria.
+    
+    
+    
+    
     float half_width = room_width / 2.0f;
     float half_depth = room_depth / 2.0f;
     float limit_x = half_width - wall_thickness - player_radius;
@@ -54,9 +54,9 @@ glm::vec3 ClampPointToAABB(glm::vec3 point, const CollisionAABB& box)
 
 glm::vec3 ResolveHorizontalCircleVsAABB(glm::vec3 point, float radius, const CollisionAABB& box)
 {
-    // Primeiro encontramos o ponto da AABB mais proximo do centro do jogador,
-    // considerando apenas XZ. Se a distancia ate esse ponto for menor que o
-    // raio do jogador, existe interseccao e empurramos o centro para fora.
+    
+    
+    
     float closest_x = std::max(box.min.x, std::min(box.max.x, point.x));
     float closest_z = std::max(box.min.z, std::min(box.max.z, point.z));
 
@@ -67,7 +67,7 @@ glm::vec3 ResolveHorizontalCircleVsAABB(glm::vec3 point, float radius, const Col
     if (distance_sq > radius * radius)
         return point;
 
-    // Caso comum: o centro esta fora da caixa, mas o circulo encostou nela.
+    
     if (distance_sq > 1e-8f)
     {
         float distance = std::sqrt(distance_sq);
@@ -77,9 +77,9 @@ glm::vec3 ResolveHorizontalCircleVsAABB(glm::vec3 point, float radius, const Col
         return point;
     }
 
-    // Caso especial: o centro do jogador esta dentro da projecao XZ da caixa.
-    // Escolhemos o lado mais proximo para empurrar o jogador para fora de forma
-    // estavel, evitando travamento quando ele nasce ou anda dentro do obstaculo.
+    
+    
+    
     float push_left  = std::fabs(point.x - box.min.x);
     float push_right = std::fabs(box.max.x - point.x);
     float push_back  = std::fabs(point.z - box.min.z);
@@ -108,9 +108,9 @@ bool RayIntersectsSphere(
     float* hit_depth
 )
 {
-    // A direcao deve estar normalizada para que "depth" esteja em unidades do
-    // mundo. Mesmo assim, calculamos de forma robusta para evitar divisao por
-    // zero se algum chamador passar um vetor degenerado.
+    
+    
+    
     float dir_length_sq = ray_direction.x * ray_direction.x
                         + ray_direction.y * ray_direction.y
                         + ray_direction.z * ray_direction.z;
@@ -140,3 +140,4 @@ bool RayIntersectsSphere(
 
     return true;
 }
+
