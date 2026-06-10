@@ -71,6 +71,7 @@ float ComputeHeldObjectScaleFactor();
 float ComputeHeldObjectDistance(); 
 float ComputeHeldObjectMaxScaleRatio(const struct GameObject& object); 
 float ComputeHeldObjectMaxDistance(const struct GameObject& object, float preferred_distance); 
+glm::vec3 ResolveHeldObjectOverlaps(glm::vec3 position, const CollisionAABB& held_box, int held_index); 
 float ComputeYawFromDirection(glm::vec3 direction); 
 int FindTargetedGameObject(); 
 void SelectNextGameObject(); 
@@ -203,10 +204,12 @@ const float PLAYER_RADIUS = 0.33f;
 const float PLAYER_EYE_HEIGHT = 2.45f;
 const float PLAYER_JUMP_SPEED = 4.8f;
 const float BALCONY_FLOOR_TOP_Y = 11.65f;
-const glm::vec3 BALCONY_FLOOR_CENTER = glm::vec3(ROOM_WIDTH / 2.0f - WALL_THICK - 0.77f, BALCONY_FLOOR_TOP_Y - 0.10f, 0.0f);
-const glm::vec3 BALCONY_FLOOR_HALF_EXTENTS = glm::vec3(0.77f, 0.10f, 1.93f);
+const glm::vec3 BALCONY_FLOOR_CENTER = glm::vec3(ROOM_WIDTH / 2.0f - WALL_THICK - 1.54f, BALCONY_FLOOR_TOP_Y - 0.10f, 0.0f);
+const glm::vec3 BALCONY_FLOOR_HALF_EXTENTS = glm::vec3(1.54f, 0.10f, 1.93f);
 const float BALCONY_SIDE_WALL_HEIGHT = 1.28f;
-const glm::vec3 BALCONY_SIDE_WALL_HALF_EXTENTS = glm::vec3(0.77f, BALCONY_SIDE_WALL_HEIGHT / 2.0f, 0.09f);
+const glm::vec3 BALCONY_SIDE_WALL_HALF_EXTENTS = glm::vec3(1.54f, BALCONY_SIDE_WALL_HEIGHT / 2.0f, 0.09f);
+const glm::vec3 DOOR_COLLIDER_CENTER = glm::vec3(ROOM_WIDTH / 2.0f - WALL_THICK - 0.32f, BALCONY_FLOOR_TOP_Y + 1.54f, 0.0f);
+const glm::vec3 DOOR_COLLIDER_HALF_EXTENTS = glm::vec3(0.18f, 1.54f, 1.10f);
 
 
 
@@ -556,7 +559,17 @@ int main(int argc, char* argv[])
                 if (push_front < best_push)
                     push = glm::vec3(0.0f, 0.0f, push_front + 0.04f);
                 heldObject.position += push;
+                held_box = GetGameObjectCollisionBox(heldObject);
             }
+
+            heldObject.position = ResolveHeldObjectOverlaps(heldObject.position, held_box, g_HeldObjectIndex);
+            held_box = GetGameObjectCollisionBox(heldObject);
+            heldObject.position.x = std::max(walkable_room.min.x + (heldObject.position.x - held_box.min.x),
+                                             std::min(walkable_room.max.x - (held_box.max.x - heldObject.position.x),
+                                                      heldObject.position.x));
+            heldObject.position.z = std::max(walkable_room.min.z + (heldObject.position.z - held_box.min.z),
+                                             std::min(walkable_room.max.z - (held_box.max.z - heldObject.position.z),
+                                                      heldObject.position.z));
         }
         else
         {

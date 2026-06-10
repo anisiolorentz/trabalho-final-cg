@@ -78,6 +78,11 @@ glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position)
             player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, balcony_wall);
     }
 
+    CollisionAABB door_box = MakeAABBFromCenterHalfExtents(DOOR_COLLIDER_CENTER, DOOR_COLLIDER_HALF_EXTENTS);
+    player_feet_y = player_position.y - PLAYER_EYE_HEIGHT;
+    if (player_feet_y < door_box.max.y - 0.05f && player_position.y > door_box.min.y + 0.05f)
+        player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, door_box);
+
     for (size_t i = 0; i < g_GameObjects.size(); ++i)
     {
         const GameObject& object = g_GameObjects[i];
@@ -253,6 +258,64 @@ bool HorizontalAABBOverlap(const CollisionAABB& a, const CollisionAABB& b)
     bool separated_x = a.max.x <= b.min.x || a.min.x >= b.max.x;
     bool separated_z = a.max.z <= b.min.z || a.min.z >= b.max.z;
     return !(separated_x || separated_z);
+}
+
+glm::vec3 ResolveHeldObjectOverlaps(glm::vec3 position, const CollisionAABB& held_box, int held_index)
+{
+    CollisionAABB resolved_box = held_box;
+    const float clearance = 0.045f;
+
+    for (int iteration = 0; iteration < 3; ++iteration)
+    {
+        bool changed = false;
+        for (size_t i = 0; i < g_GameObjects.size(); ++i)
+        {
+            if ((int)i == held_index)
+                continue;
+
+            const GameObject& other = g_GameObjects[i];
+            if (other.source)
+                continue;
+
+            CollisionAABB other_box = GetGameObjectCollisionBox(other);
+            if (resolved_box.min.y >= other_box.max.y - clearance)
+                continue;
+            if (resolved_box.max.y <= other_box.min.y + clearance)
+                continue;
+            if (!HorizontalAABBOverlap(resolved_box, other_box))
+                continue;
+
+            float push_left = resolved_box.max.x - other_box.min.x;
+            float push_right = other_box.max.x - resolved_box.min.x;
+            float push_back = resolved_box.max.z - other_box.min.z;
+            float push_front = other_box.max.z - resolved_box.min.z;
+            glm::vec3 push = glm::vec3(-push_left - clearance, 0.0f, 0.0f);
+            float best_push = push_left;
+
+            if (push_right < best_push)
+            {
+                best_push = push_right;
+                push = glm::vec3(push_right + clearance, 0.0f, 0.0f);
+            }
+            if (push_back < best_push)
+            {
+                best_push = push_back;
+                push = glm::vec3(0.0f, 0.0f, -push_back - clearance);
+            }
+            if (push_front < best_push)
+                push = glm::vec3(0.0f, 0.0f, push_front + clearance);
+
+            position += push;
+            resolved_box.min += push;
+            resolved_box.max += push;
+            changed = true;
+        }
+
+        if (!changed)
+            break;
+    }
+
+    return position;
 }
 
 float FindSupportHeightForObject(size_t object_index, const CollisionAABB& before_box, const CollisionAABB& after_box)
