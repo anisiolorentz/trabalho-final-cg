@@ -11,6 +11,7 @@ struct InputControllerContext
     bool* keyAPressed;
     bool* keySPressed;
     bool* keyDPressed;
+    bool* keyRPressed;
 
     float* cameraTheta;
     float* cameraPhi;

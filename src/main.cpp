@@ -236,6 +236,8 @@ bool g_KeyW_Pressed = false;
 bool g_KeyA_Pressed = false;
 bool g_KeyS_Pressed = false;
 bool g_KeyD_Pressed = false;
+// Estado contínuo da tecla R: enquanto pressionada, gira o objeto segurado.
+bool g_KeyR_Pressed = false;
 
 
 
@@ -514,6 +516,27 @@ int main(int argc, char* argv[])
             
             glm::vec3 cam_pos3(g_CameraPosition.x, g_CameraPosition.y, g_CameraPosition.z);
             heldObject.position = cam_pos3 + g_CameraForward * hold_distance;
+
+            // Rotação manual do objeto segurado: enquanto a tecla R estiver
+            // pressionada, acumulamos um pequeno incremento de guinada (yaw) a
+            // cada quadro. Multiplicamos pelo g_DeltaTime para que a velocidade
+            // independa da taxa de quadros, e usamos uma velocidade angular
+            // baixa (~1 rad/s, ~57°/s) para que seja fácil ajustar o ângulo com
+            // precisão segurando a tecla.
+            if (g_KeyR_Pressed)
+            {
+                const float HELD_ROTATE_SPEED = 1.0f; // rad/s
+                float delta_yaw = HELD_ROTATE_SPEED * g_DeltaTime;
+                if (heldObject.objectId == TRIANGLE_PIECE)
+                    // A rampa tem o yaw recalculado todo quadro a partir da
+                    // direção da câmera; portanto giramos acumulando no offset.
+                    g_HeldYawOffset += delta_yaw;
+                else
+                    // Demais peças mantêm um yaw absoluto, então giramos
+                    // diretamente o ângulo de rotação do objeto.
+                    heldObject.rotation.y += delta_yaw;
+            }
+
             if (heldObject.objectId == TRIANGLE_PIECE)
                 heldObject.rotation.y = ComputeYawFromDirection(g_CameraForward) + g_HeldYawOffset;
 
@@ -1032,6 +1055,7 @@ void ConfigureInputController()
     context.keyAPressed = &g_KeyA_Pressed;
     context.keySPressed = &g_KeyS_Pressed;
     context.keyDPressed = &g_KeyD_Pressed;
+    context.keyRPressed = &g_KeyR_Pressed;
     context.cameraTheta = &g_CameraTheta;
     context.cameraPhi = &g_CameraPhi;
     context.angleX = &g_AngleX;

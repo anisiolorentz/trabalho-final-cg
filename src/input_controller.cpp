@@ -97,6 +97,11 @@ void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
         if (key == GLFW_KEY_A) *g_InputContext.keyAPressed = pressed;
         if (key == GLFW_KEY_S) *g_InputContext.keySPressed = pressed;
         if (key == GLFW_KEY_D) *g_InputContext.keyDPressed = pressed;
+        // A tecla R é tratada como estado contínuo (segurar): enquanto estiver
+        // pressionada, o laço principal gira lentamente o objeto que está sendo
+        // segurado. Por isso guardamos apenas pressionada/solta, sem disparar
+        // uma ação única no GLFW_PRESS.
+        if (key == GLFW_KEY_R) *g_InputContext.keyRPressed = pressed;
     }
 
     float delta = 3.141592f / 16.0f;
@@ -125,7 +130,9 @@ void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
         g_InputContext.cancelHeldObject();
     if (key == GLFW_KEY_C && action == GLFW_PRESS && g_InputContext.selectNextGameObject)
         g_InputContext.selectNextGameObject();
-    if (key == GLFW_KEY_R && action == GLFW_PRESS && g_InputContext.reloadShaders)
+    // Recompilação dos shaders movida da tecla R para a tecla L, já que R
+    // agora é usada para girar o objeto segurado.
+    if (key == GLFW_KEY_L && action == GLFW_PRESS && g_InputContext.reloadShaders)
         g_InputContext.reloadShaders();
 }
 
