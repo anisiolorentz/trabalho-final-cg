@@ -27,10 +27,17 @@ struct InputControllerContext
     bool* usePerspectiveProjection;
     bool* showInfoText;
 
+    // Estado da câmera look-at: 'useLookAtCamera' indica se o modo de órbita
+    // está ativo (o scroll do mouse usa isso para saber se deve dar zoom) e
+    // 'lookAtRadius' é o raio da órbita ajustado pela roda do mouse.
+    bool* useLookAtCamera;
+    float* lookAtRadius;
+
     InputActionCallback toggleHeldObject;
     InputActionCallback cancelHeldObject;
     InputActionCallback selectNextGameObject;
     InputActionCallback reloadShaders;
+    InputActionCallback toggleCameraMode;
 };
 
 void InputController_SetContext(const InputControllerContext& context);

@@ -10,6 +10,10 @@ in vec4 normal;
 
 in vec4 position_model;
 
+// Normal em espaço-de-objeto (ver shader_vertex.glsl). Usada para escolher os
+// pesos da projeção triplanar nas peças do puzzle.
+in vec4 normal_model;
+
 
 in vec2 texcoords;
 
@@ -61,6 +65,7 @@ uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
 uniform sampler2D TextureImage5;
+uniform sampler2D TextureImage6;
 uniform float shadow_alpha;
 uniform vec3 guide_color;
 
@@ -78,6 +83,26 @@ float EdgeDarkening(float width)
     float edge_distance = min(min(q.x, 1.0 - q.x), min(min(q.y, 1.0 - q.y), min(q.z, 1.0 - q.z)));
     float edge = 1.0 - smoothstep(0.0, width, edge_distance);
     return mix(1.0, 0.48, edge);
+}
+
+// Amostragem TRIPLANAR (em espaço de objeto) usada pelas peças do puzzle.
+// Em vez de uma única projeção planar (que esticava a textura nas faces
+// verticais do cubo e na lateral curva do cilindro), projetamos a textura de
+// madeira (TextureImage6) nos três planos YZ/XZ/XY e misturamos conforme a
+// normal do modelo. O parâmetro 'scale' controla a repetição (tiling) da
+// textura; valores maiores = padrão menor. Retorna a cor da textura, que será
+// multiplicada pela cor de identidade de cada peça no corpo de main().
+vec3 SamplePieceTexture(float scale)
+{
+    // Pesos de mistura proporcionais a quanto a normal aponta em cada eixo.
+    vec3 an = abs(normalize(normal_model.xyz));
+    vec3 w  = an / max(an.x + an.y + an.z, 0.001);
+
+    // Cada plano usa as duas coordenadas perpendiculares ao seu eixo.
+    vec3 tex = texture(TextureImage6, position_model.zy * scale).rgb * w.x
+             + texture(TextureImage6, position_model.xz * scale).rgb * w.y
+             + texture(TextureImage6, position_model.xy * scale).rgb * w.z;
+    return tex;
 }
 
 void main()
@@ -207,7 +232,8 @@ void main()
         }
         U = fract(u_raw);
         V = fract(v_raw);
-        Kd0 = texture(TextureImage0, vec2(U,V)).rgb; 
+        // Paredes usam a textura de lamina de carvalho (oak veneer), carregada na unidade 6.
+        Kd0 = texture(TextureImage6, vec2(U,V)).rgb;
     }
     else if ( object_id == CEILING )
     {
@@ -273,39 +299,26 @@ void main()
     }
     else if ( object_id == CUBE_PIECE )
     {
-        
-        U = position_model.x * 1.5;
-        V = position_model.z * 1.5 + position_model.y;
-
-        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = vec3(0.10, 0.62, 0.20) * EdgeDarkening(0.09);
+        // Cubo VERDE: a cor de identidade é multiplicada pela textura de madeira
+        // (amostrada de forma triplanar, sem esticar), resultando num bloco com
+        // aparência de madeira pintada de verde. O fator 1.85 compensa o brilho
+        // perdido na multiplicação e EdgeDarkening escurece as arestas (volume).
+        Kd0 = vec3(0.10, 0.62, 0.20) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.09);
     }
     else if ( object_id == TRIANGLE_PIECE )
     {
-        
-        U = position_model.x * 1.5;
-        V = position_model.z * 1.5 + position_model.y;
-
-        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = vec3(0.78, 0.09, 0.06) * EdgeDarkening(0.10);
+        // Rampa VERMELHA — mesma lógica do cubo, com a cor de identidade própria.
+        Kd0 = vec3(0.78, 0.09, 0.06) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.10);
     }
     else if ( object_id == CYLINDER_PIECE )
     {
-        
-        U = position_model.x * 1.5;
-        V = position_model.z * 1.5 + position_model.y;
-
-        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = vec3(0.90, 0.66, 0.04) * EdgeDarkening(0.12);
+        // Cilindro AMARELO — mesma lógica do cubo.
+        Kd0 = vec3(0.90, 0.66, 0.04) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.12);
     }
     else if ( object_id == SELECTED_PIECE )
     {
-        
-        U = position_model.x * 1.5;
-        V = position_model.z * 1.5 + position_model.y;
-
-        vec3 base = texture(TextureImage0, vec2(U,V)).rgb;
-        Kd0 = vec3(0.80, 0.80, 0.80) * EdgeDarkening(0.10);
+        // Peça destacada (cinza claro) — mantém o mesmo material texturizado.
+        Kd0 = vec3(0.80, 0.80, 0.80) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.10);
     }
     else
     {

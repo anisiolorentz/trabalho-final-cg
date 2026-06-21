@@ -39,6 +39,21 @@ void DebugOverlay_ShowProjection(GLFWwindow* window, const DebugOverlayConfig& c
         TextRendering_PrintString(window, "Orthographic", 1.0f - 13*charwidth, -1.0f + 2*lineheight/10, 1.0f);
 }
 
+// Mostra no canto inferior esquerdo qual câmera está ativa (livre ou look-at),
+// ajudando o usuário e a banca a identificar o modo durante a apresentação.
+void DebugOverlay_ShowCameraMode(GLFWwindow* window, const DebugOverlayConfig& config)
+{
+    if (!config.showInfoText)
+        return;
+
+    float lineheight = TextRendering_LineHeight(window);
+
+    if (config.useLookAtCamera)
+        TextRendering_PrintString(window, "Camera: Look-at (V)", -1.0f + lineheight/10, -1.0f + 2*lineheight, 1.0f);
+    else
+        TextRendering_PrintString(window, "Camera: Livre (V)", -1.0f + lineheight/10, -1.0f + 2*lineheight, 1.0f);
+}
+
 void DebugOverlay_ShowFramesPerSecond(GLFWwindow* window, const DebugOverlayConfig& config)
 {
     if (!config.showInfoText)

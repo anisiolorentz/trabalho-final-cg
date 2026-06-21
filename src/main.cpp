@@ -73,9 +73,10 @@ float ComputeHeldObjectMaxScaleRatio(const struct GameObject& object);
 float ComputeHeldObjectMaxDistance(const struct GameObject& object, float preferred_distance); 
 glm::vec3 ResolveHeldObjectOverlaps(glm::vec3 position, const CollisionAABB& held_box, int held_index); 
 float ComputeYawFromDirection(glm::vec3 direction); 
-int FindTargetedGameObject(); 
-void SelectNextGameObject(); 
-void ToggleHeldObject(); 
+int FindTargetedGameObject();
+void SelectNextGameObject();
+void ToggleHeldObject();
+void ToggleCameraMode();
 void CancelHeldObject(); 
 void ResetGameState();
 void UpdateVictoryState();
@@ -185,6 +186,21 @@ glm::vec4 g_CameraPosition = INITIAL_CAMERA_POSITION;
 
 
 glm::vec3 g_CameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
+
+
+// --- Câmera look-at (segundo tipo de câmera) ---
+// Quando g_UseLookAtCamera é true (tecla V), a câmera deixa de ser primeira
+// pessoa e passa a ORBITAR um alvo fixo, sempre olhando para ele. O alvo é
+// congelado no momento do toggle: g_LookAtTargetIndex guarda o índice da peça
+// que estava sob a mira (-1 = mirar a mesa, usado como fallback). O mouse gira
+// a órbita (reutilizando g_CameraTheta/g_CameraPhi como ângulos esféricos) e a
+// roda do mouse ajusta g_LookAtRadius (zoom). g_SavedCameraTheta/Phi guardam a
+// orientação da câmera livre para restaurá-la ao voltar do modo look-at.
+bool  g_UseLookAtCamera   = false;
+int   g_LookAtTargetIndex = -1;
+float g_LookAtRadius      = 6.0f;
+float g_SavedCameraTheta  = 1.0f;
+float g_SavedCameraPhi    = 0.0f;
 
 
 
@@ -352,7 +368,11 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/assets/environment/textures/laminate_floor_02_diff_1k.png"); 
     LoadTextureImage("../../data/assets/small_wooden_table/textures/small_wooden_table_01_diff_4k.jpg"); 
     LoadTextureImage("../../data/assets/large_castle_door/textures/large_castle_door_diff_4k.jpg"); 
-    LoadTextureImage("../../data/assets/environment/textures/concrete_block_wall_03_diff_4k.jpg"); 
+    LoadTextureImage("../../data/assets/environment/textures/concrete_block_wall_03_diff_4k.jpg");
+    // Textura de lâmina de carvalho (oak veneer) usada exclusivamente nas paredes.
+    // Por ser a 7a chamada a LoadTextureImage, fica associada a unidade de textura 6,
+    // acessivel no fragment shader como TextureImage6.
+    LoadTextureImage("../../data/assets/environment/textures/oak_veneer_01_diff_1k.jpg");
 
     
     ObjModel planemodel("../../data/assets/primitives/plane/plane.obj");
@@ -501,7 +521,9 @@ int main(int argc, char* argv[])
         
         
         
-        if (g_HeldObjectIndex >= 0)
+        // No modo look-at a câmera vira observadora: congelamos a manipulação
+        // de peças (não atualiza objeto segurado nem reseleciona pela mira).
+        if (!g_UseLookAtCamera && g_HeldObjectIndex >= 0)
         {
             GameObject& heldObject = g_GameObjects[g_HeldObjectIndex];
             float scale_factor = ComputeHeldObjectScaleFactor();
@@ -594,7 +616,7 @@ int main(int argc, char* argv[])
                                              std::min(walkable_room.max.z - (held_box.max.z - heldObject.position.z),
                                                       heldObject.position.z));
         }
-        else
+        else if (!g_UseLookAtCamera)
         {
             g_SelectedObjectIndex = FindTargetedGameObject();
         }
@@ -629,11 +651,16 @@ int main(int argc, char* argv[])
         
         
         
+        // WASD só movem o jogador no modo livre; no look-at o jogador fica
+        // parado enquanto a câmera orbita o alvo.
         float step = g_CameraSpeed * g_DeltaTime;
-        if (g_KeyW_Pressed) g_CameraPosition += horizontal_forward * step;
-        if (g_KeyS_Pressed) g_CameraPosition -= horizontal_forward * step;
-        if (g_KeyD_Pressed) g_CameraPosition += right_vector       * step;
-        if (g_KeyA_Pressed) g_CameraPosition -= right_vector       * step;
+        if (!g_UseLookAtCamera)
+        {
+            if (g_KeyW_Pressed) g_CameraPosition += horizontal_forward * step;
+            if (g_KeyS_Pressed) g_CameraPosition -= horizontal_forward * step;
+            if (g_KeyD_Pressed) g_CameraPosition += right_vector       * step;
+            if (g_KeyA_Pressed) g_CameraPosition -= right_vector       * step;
+        }
 
         
         
@@ -651,7 +678,38 @@ int main(int argc, char* argv[])
         
         
         
-        glm::mat4 view = Matrix_Camera_View(g_CameraPosition, camera_view_vector, camera_up_vector);
+        // Posição e direção efetivas usadas para montar a View matrix.
+        // No modo livre são a posição do jogador e o vetor de visão FPS já
+        // calculados acima. No modo look-at, recalculamos ambos para orbitar
+        // o alvo (sem alterar g_CameraPosition, que continua sendo a posição
+        // "real" do jogador, preservada para quando voltarmos ao modo livre).
+        glm::vec4 eye_position = g_CameraPosition;
+
+        if (g_UseLookAtCamera)
+        {
+            // Alvo da órbita: a peça congelada no toggle ou, como fallback,
+            // o topo da mesa do puzzle.
+            glm::vec3 target;
+            if (g_LookAtTargetIndex >= 0 && g_LookAtTargetIndex < (int)g_GameObjects.size())
+                target = g_GameObjects[g_LookAtTargetIndex].position;
+            else
+                target = TABLE_POSITION + glm::vec3(0.0f, 1.55f, 0.0f);
+
+            // Posição da câmera sobre uma esfera de raio g_LookAtRadius ao redor
+            // do alvo, parametrizada pelos ângulos theta/phi controlados pelo
+            // mouse (coordenadas esféricas).
+            glm::vec3 orbit_offset = glm::vec3(
+                cosf(g_CameraPhi) * sinf(g_CameraTheta),
+                sinf(g_CameraPhi),
+                cosf(g_CameraPhi) * cosf(g_CameraTheta)) * g_LookAtRadius;
+            glm::vec3 eye = target + orbit_offset;
+
+            eye_position = glm::vec4(eye.x, eye.y, eye.z, 1.0f);
+            // A câmera look-at SEMPRE aponta para o alvo: vetor de visão = alvo - olho.
+            camera_view_vector = glm::vec4(target.x - eye.x, target.y - eye.y, target.z - eye.z, 0.0f);
+        }
+
+        glm::mat4 view = Matrix_Camera_View(eye_position, camera_view_vector, camera_up_vector);
 
         
         glm::mat4 projection;
@@ -790,6 +848,9 @@ int main(int argc, char* argv[])
         
         DebugOverlay_ShowProjection(window, debug_config);
 
+
+        DebugOverlay_ShowCameraMode(window, debug_config);
+
         
         
         DebugOverlay_ShowFramesPerSecond(window, debug_config);
@@ -802,7 +863,10 @@ int main(int argc, char* argv[])
             hud_state = HUD_HOLDING;
         else if (g_SelectedObjectIndex >= 0)
             hud_state = HUD_CAN_GRAB;
-        HudOverlay_Draw(window, hud_state);
+        // A mira/HUD de interação só aparece na câmera livre (no look-at não há
+        // mira; a câmera está orbitando o objeto).
+        if (!g_UseLookAtCamera)
+            HudOverlay_Draw(window, hud_state);
         if (g_GameWon)
             HudOverlay_DrawVictory(window, g_VictoryTimer);
 
@@ -1042,6 +1106,7 @@ DebugOverlayConfig CreateDebugOverlayConfig()
     DebugOverlayConfig config;
     config.showInfoText = g_ShowInfoText;
     config.usePerspectiveProjection = g_UsePerspectiveProjection;
+    config.useLookAtCamera = g_UseLookAtCamera;
     config.angleX = g_AngleX;
     config.angleY = g_AngleY;
     config.angleZ = g_AngleZ;
@@ -1066,10 +1131,13 @@ void ConfigureInputController()
     context.playerJumpSpeed = PLAYER_JUMP_SPEED;
     context.usePerspectiveProjection = &g_UsePerspectiveProjection;
     context.showInfoText = &g_ShowInfoText;
+    context.useLookAtCamera = &g_UseLookAtCamera;
+    context.lookAtRadius = &g_LookAtRadius;
     context.toggleHeldObject = ToggleHeldObject;
     context.cancelHeldObject = CancelHeldObject;
     context.selectNextGameObject = SelectNextGameObject;
     context.reloadShaders = ReloadShadersFromInput;
+    context.toggleCameraMode = ToggleCameraMode;
     InputController_SetContext(context);
 }
 
@@ -1078,6 +1146,41 @@ void ReloadShadersFromInput()
     LoadShadersFromFiles();
     fprintf(stdout,"Shaders recarregados!\n");
     fflush(stdout);
+}
+
+// Alterna entre a câmera livre (primeira pessoa) e a câmera look-at.
+// Ao ENTRAR no modo look-at congelamos o alvo da órbita:
+//  - se o jogador está segurando uma peça, a posição dela depende da própria
+//    câmera (geraria realimentação na conta do vetor de visão), então miramos
+//    a mesa (-1);
+//  - se não está segurando mas está mirando uma peça pousada, orbitamos essa
+//    peça;
+//  - se não está mirando nada, miramos a mesa (-1).
+// Salvamos a orientação da câmera livre para restaurá-la ao sair, e ajustamos
+// um ângulo de elevação agradável para a órbita começar numa vista em 3/4.
+void ToggleCameraMode()
+{
+    g_UseLookAtCamera = !g_UseLookAtCamera;
+
+    if (g_UseLookAtCamera)
+    {
+        g_SavedCameraTheta = g_CameraTheta;
+        g_SavedCameraPhi   = g_CameraPhi;
+
+        if (g_HeldObjectIndex < 0 && g_SelectedObjectIndex >= 0)
+            g_LookAtTargetIndex = g_SelectedObjectIndex;
+        else
+            g_LookAtTargetIndex = -1; // fallback: mira a mesa
+
+        g_LookAtRadius = 6.0f;
+        g_CameraPhi    = 0.5f; // ~28° acima da horizontal
+    }
+    else
+    {
+        // Restaura a orientação que a câmera livre tinha antes do look-at.
+        g_CameraTheta = g_SavedCameraTheta;
+        g_CameraPhi   = g_SavedCameraPhi;
+    }
 }
 void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {

@@ -7,6 +7,7 @@ struct DebugOverlayConfig
 {
     bool showInfoText;
     bool usePerspectiveProjection;
+    bool useLookAtCamera;
     float angleX;
     float angleY;
     float angleZ;
@@ -14,6 +15,7 @@ struct DebugOverlayConfig
 
 void DebugOverlay_ShowEulerAngles(GLFWwindow* window, const DebugOverlayConfig& config);
 void DebugOverlay_ShowProjection(GLFWwindow* window, const DebugOverlayConfig& config);
+void DebugOverlay_ShowCameraMode(GLFWwindow* window, const DebugOverlayConfig& config);
 void DebugOverlay_ShowFramesPerSecond(GLFWwindow* window, const DebugOverlayConfig& config);
 
 #endif

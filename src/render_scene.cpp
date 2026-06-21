@@ -213,7 +213,9 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage2"), 2);
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage3"), 3); 
     glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage4"), 4); 
-    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5); 
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage5"), 5);
+    // Liga o sampler TextureImage6 (textura oak veneer das paredes) a unidade de textura 6.
+    glUniform1i(glGetUniformLocation(g_GpuProgramID, "TextureImage6"), 6);
     glUniform1f(g_shadow_alpha_uniform, 0.28f);
     glUniform3f(g_guide_color_uniform, 1.0f, 1.0f, 1.0f);
     glUseProgram(0);

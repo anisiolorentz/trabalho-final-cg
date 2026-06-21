@@ -78,7 +78,18 @@ void Input_CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 
 void Input_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    (void)window; (void)xoffset; (void)yoffset;
+    (void)window; (void)xoffset;
+
+    // No modo look-at, a roda do mouse aproxima/afasta a câmera do alvo
+    // (zoom da órbita). Limitamos o raio para a câmera não atravessar o objeto
+    // (mínimo) nem se afastar demais a ponto de perder o foco (máximo).
+    if (g_InputContext.useLookAtCamera && *g_InputContext.useLookAtCamera
+        && g_InputContext.lookAtRadius != nullptr)
+    {
+        *g_InputContext.lookAtRadius -= (float)yoffset * 0.6f;
+        if (*g_InputContext.lookAtRadius < 2.0f)  *g_InputContext.lookAtRadius = 2.0f;
+        if (*g_InputContext.lookAtRadius > 14.0f) *g_InputContext.lookAtRadius = 14.0f;
+    }
 }
 
 void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
@@ -130,6 +141,11 @@ void Input_KeyCallback(GLFWwindow* window, int key, int scancode, int action, in
         g_InputContext.cancelHeldObject();
     if (key == GLFW_KEY_C && action == GLFW_PRESS && g_InputContext.selectNextGameObject)
         g_InputContext.selectNextGameObject();
+    // Tecla V: alterna entre a câmera livre (primeira pessoa) e a câmera
+    // look-at, que orbita uma peça do puzzle (ou a mesa). São os dois tipos de
+    // câmera exigidos pela especificação.
+    if (key == GLFW_KEY_V && action == GLFW_PRESS && g_InputContext.toggleCameraMode)
+        g_InputContext.toggleCameraMode();
     // Recompilação dos shaders movida da tecla R para a tecla L, já que R
     // agora é usada para girar o objeto segurado.
     if (key == GLFW_KEY_L && action == GLFW_PRESS && g_InputContext.reloadShaders)

@@ -20,6 +20,12 @@ out vec4 position_model;
 out vec4 normal;
 out vec2 texcoords;
 
+// Normal no espaço-DO-OBJETO (sem aplicar a Model matrix). É usada no fragment
+// shader para a amostragem triplanar das peças do puzzle: como tanto a normal
+// quanto a posição ficam em coordenadas locais da malha, a textura permanece
+// "colada" na peça mesmo quando ela é transladada ou girada (tecla R).
+out vec4 normal_model;
+
 void main()
 {
     
@@ -61,8 +67,12 @@ void main()
     normal = inverse(transpose(model)) * normal_coefficients;
     normal.w = 0.0;
 
-    
+
     texcoords = texture_coefficients;
+
+    // Normal crua da malha (espaço do objeto), repassada para o fragment shader.
+    normal_model = normal_coefficients;
+    normal_model.w = 0.0;
 }
 
 
