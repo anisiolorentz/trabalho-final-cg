@@ -1,4 +1,5 @@
 bool GetRampLocalXZ(const GameObject& object, glm::vec3 player_position, float* local_x, float* local_z);
+bool IsPlayerOverRampFootprint(const GameObject& object, glm::vec3 player_position);
 bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_position, float player_feet_y);
 
 CollisionAABB GetGameObjectCollisionBox(const GameObject& object)
@@ -98,6 +99,15 @@ glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position)
         float walkable_top = GetWalkableTopHeightForObject(object, object_box, player_position);
         if (object.objectId == TRIANGLE_PIECE)
         {
+            // Bloqueio da rampa: NÃO bloqueamos quando o jogador está sobre a
+            // superfície caminhável (subindo a ladeira) e bloqueamos em todo o
+            // resto — costas, laterais e a base quando ainda longe da superfície.
+            // IsPlayerOnRampWalkableSurface combina footprint + altura, e a
+            // condição de altura agora usa tolerância ADAPTATIVA (ver a função),
+            // então durante a subida ela permanece verdadeira (sem o "tremor"
+            // que a tolerância fixa de 0.28 causava), enquanto pelas costas/lados
+            // os pés ficam muito abaixo da superfície e o bloqueio é acionado,
+            // impedindo atravessar a rampa por fora do caminho.
             if (!IsPlayerOnRampWalkableSurface(object, player_position, player_feet_y))
                 player_position = ResolveHorizontalCircleVsAABB(player_position, PLAYER_RADIUS, object_box);
             continue;
@@ -155,7 +165,11 @@ bool GetRampLocalXZ(const GameObject& object, glm::vec3 player_position, float* 
     return true;
 }
 
-bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_position, float player_feet_y)
+// Testa se o jogador está HORIZONTALMENTE sobre a faixa caminhável da rampa
+// (o "footprint"), ignorando a altura. É a condição usada para decidir se a
+// rampa deve bloquear o movimento horizontal: dentro do footprint nunca
+// bloqueamos (o jogador está subindo); fora dele, a rampa age como obstáculo.
+bool IsPlayerOverRampFootprint(const GameObject& object, glm::vec3 player_position)
 {
     float local_x = 0.0f;
     float local_z = 0.0f;
@@ -169,9 +183,38 @@ bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_po
     if (std::fabs(local_z) > 0.40f + side_margin)
         return false;
 
+    return true;
+}
+
+// Testa se o jogador deve ser SUSTENTADO pela superfície inclinada da rampa.
+// Além de estar sobre o footprint, os pés precisam estar próximos da altura da
+// superfície naquele ponto e o jogador não pode estar subindo rápido demais
+// (evita "grudar" na rampa durante um pulo). Esta condição de altura é usada
+// apenas para o suporte vertical, NÃO para decidir o bloqueio horizontal.
+bool IsPlayerOnRampWalkableSurface(const GameObject& object, glm::vec3 player_position, float player_feet_y)
+{
+    if (!IsPlayerOverRampFootprint(object, player_position))
+        return false;
+
     CollisionAABB object_box = GetGameObjectCollisionBox(object);
     float walkable_top = GetWalkableTopHeightForObject(object, object_box, player_position);
-    return player_feet_y >= walkable_top - 0.28f && g_PlayerVerticalVelocity <= 1.25f;
+
+    // Tolerância ADAPTATIVA para o suporte vertical. A física vertical roda antes
+    // do movimento horizontal (UpdatePlayerVerticalPhysics vem antes do WASD no
+    // laço), então, durante a subida, os pés ficam um quadro "atrás" da altura da
+    // superfície: a cada passo a rampa sobe um pouco e os pés só alcançam essa
+    // altura no quadro seguinte. Quanto maior o Δt (FPS baixo) e mais íngreme a
+    // rampa (scale.y/scale.x), maior essa defasagem. Com uma tolerância fixa de
+    // 0.28 o suporte desligava quando a subida por quadro a ultrapassava e, sem o
+    // bloqueio horizontal sobre o footprint, o jogador afundava e atravessava a
+    // rampa. Aqui a tolerância acompanha a subida máxima possível em um quadro
+    // (inclinação x velocidade x Δt), garantindo subida contínua em qualquer FPS;
+    // o termo base 0.28 cobre o repouso normal sobre a superfície.
+    float ramp_slope     = (1.45f * object.scale.y) / (1.20f * std::max(0.001f, object.scale.x));
+    float rise_per_frame = ramp_slope * g_CameraSpeed * g_DeltaTime;
+    float climb_tolerance = 0.28f + 1.5f * rise_per_frame;
+
+    return player_feet_y >= walkable_top - climb_tolerance && g_PlayerVerticalVelocity <= 1.25f;
 }
 
 float FindPlayerSupportHeight(glm::vec3 player_position){
