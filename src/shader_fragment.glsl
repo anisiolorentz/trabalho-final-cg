@@ -299,21 +299,32 @@ void main()
     }
     else if ( object_id == CUBE_PIECE )
     {
-        // Cubo VERDE: a cor de identidade é multiplicada pela textura de madeira
-        // (amostrada de forma triplanar, sem esticar), resultando num bloco com
-        // aparência de madeira pintada de verde. O fator 1.85 compensa o brilho
-        // perdido na multiplicação e EdgeDarkening escurece as arestas (volume).
-        Kd0 = vec3(0.10, 0.62, 0.20) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.09);
+        // Cubo VERDE: assim como a rampa, agora usa as coordenadas de textura
+        // PROPRIAS da malha (vt no .obj, geradas por unwrap planar por face).
+        // Cada face do cubo recebe a madeira em escala real, sem o esticamento da
+        // projecao triplanar. fract() ladrilha a textura (sampler CLAMP_TO_EDGE).
+        // O fator 1.85 compensa o brilho e EdgeDarkening escurece as arestas.
+        Kd0 = vec3(0.10, 0.62, 0.20) * texture(TextureImage6, fract(texcoords)).rgb * 1.85 * EdgeDarkening(0.09);
     }
     else if ( object_id == TRIANGLE_PIECE )
     {
-        // Rampa VERMELHA — mesma lógica do cubo, com a cor de identidade própria.
-        Kd0 = vec3(0.78, 0.09, 0.06) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.10);
+        // Rampa VERMELHA. Diferente do cubo/cilindro, a rampa agora usa as
+        // coordenadas de textura PROPRIAS da malha (vt no .obj), geradas por um
+        // unwrap planar no plano de cada face. Isso elimina o esticamento que a
+        // projecao triplanar causava na face inclinada (hipotenusa): cada face
+        // recebe a madeira em escala real, sem deformar. Usamos fract() para
+        // ladrilhar a textura (o sampler usa CLAMP_TO_EDGE), exatamente como o
+        // piso e as paredes ja fazem.
+        Kd0 = vec3(0.78, 0.09, 0.06) * texture(TextureImage6, fract(texcoords)).rgb * 1.85 * EdgeDarkening(0.10);
     }
     else if ( object_id == CYLINDER_PIECE )
     {
-        // Cilindro AMARELO — mesma lógica do cubo.
-        Kd0 = vec3(0.90, 0.66, 0.04) * SamplePieceTexture(1.2) * 1.85 * EdgeDarkening(0.12);
+        // Cilindro AMARELO — mesma lógica do cubo e da rampa: coordenadas de
+        // textura PROPRIAS da malha (vt no .obj). O cilindro e um prisma facetado
+        // de 8 lados; cada faceta lateral plana e cada tampa recebem a madeira em
+        // escala real via unwrap planar por face, sem o esticamento que a projecao
+        // triplanar causava na superficie curva. fract() ladrilha a textura.
+        Kd0 = vec3(0.90, 0.66, 0.04) * texture(TextureImage6, fract(texcoords)).rgb * 1.85 * EdgeDarkening(0.12);
     }
     else if ( object_id == SELECTED_PIECE )
     {

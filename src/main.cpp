@@ -56,8 +56,8 @@ DebugOverlayConfig CreateDebugOverlayConfig();
 void DrawCeilingLightsAndShadows(); 
 void DrawExitBalcony(); 
 void DrawCastleDoor(); 
-void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale); 
-void DrawShadowEllipse(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale); 
+void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale, float yaw);
+void DrawShadowEllipse(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale, float yaw);
 float FindShadowReceiverHeight(const struct GameObject& object, const CollisionAABB& object_box); 
 CollisionAABB GetGameObjectCollisionBox(const struct GameObject& object); 
 glm::vec3 ResolvePlayerCollisions(glm::vec3 player_position); 
@@ -894,9 +894,14 @@ int main(int argc, char* argv[])
 
 
 
-void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale)
+void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale, float yaw)
 {
+    // A sombra acompanha a rotacao do objeto: inserimos um Matrix_Rotate_Y(yaw)
+    // entre a translacao e a escala, de modo que o quad (centrado na origem)
+    // gire em torno do proprio centro junto com a peca segurada/rotacionada
+    // pelo jogador (a tecla R altera apenas o yaw, eixo Y).
     glm::mat4 model = Matrix_Translate(center.x, receiver_y + 0.018f, center.z)
+                    * Matrix_Rotate_Y(yaw)
                     * Matrix_Scale(size.x, 0.01f, size.y);
 
     glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
@@ -906,9 +911,13 @@ void DrawShadowQuad(glm::vec3 center, glm::vec2 size, float receiver_y, float al
     glUniform1f(g_shadow_alpha_uniform, 0.28f);
 }
 
-void DrawShadowEllipse(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale)
+void DrawShadowEllipse(glm::vec3 center, glm::vec2 size, float receiver_y, float alpha_scale, float yaw)
 {
+    // Mesmo principio do quad: gira a elipse junto com o objeto. Para o cilindro
+    // a sombra e praticamente circular, entao o efeito e sutil, mas mantemos por
+    // consistencia (e caso a peca tenha escala nao uniforme em X/Z).
     glm::mat4 model = Matrix_Translate(center.x, receiver_y + 0.020f, center.z)
+                    * Matrix_Rotate_Y(yaw)
                     * Matrix_Scale(size.x, 0.012f, size.y);
 
     glUniformMatrix4fv(g_model_uniform, 1, GL_FALSE, glm::value_ptr(model));
@@ -983,7 +992,8 @@ void DrawCeilingLightsAndShadows()
     DrawShadowQuad(glm::vec3(TABLE_POSITION.x, 0.0f, TABLE_POSITION.z),
                    glm::vec2(TABLE_COLLIDER_HALF_EXTENTS.x * 2.15f, TABLE_COLLIDER_HALF_EXTENTS.z * 2.10f),
                    0.0f,
-                   0.09f);
+                   0.09f,
+                   0.0f); // mesa nao gira
 
     for (size_t i = 0; i < g_GameObjects.size(); ++i)
     {
@@ -1012,10 +1022,11 @@ void DrawCeilingLightsAndShadows()
         center.x += from_center.x * height_above_receiver;
         center.z += from_center.y * height_above_receiver;
 
+        // Passamos o yaw (rotacao em Y) do objeto para que a sombra gire junto.
         if (object.objectId == CYLINDER_PIECE)
-            DrawShadowEllipse(center, size, receiver_y, alpha);
+            DrawShadowEllipse(center, size, receiver_y, alpha, object.rotation.y);
         else
-            DrawShadowQuad(center, size, receiver_y, alpha);
+            DrawShadowQuad(center, size, receiver_y, alpha, object.rotation.y);
     }
 
     glDepthMask(GL_TRUE);
