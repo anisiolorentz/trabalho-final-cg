@@ -310,7 +310,7 @@ int main(int argc, char* argv[])
     
     
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - Seu Cartao - Seu Nome", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "INF01047 - 342139 - Anisio e 318785 - Antonio", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
